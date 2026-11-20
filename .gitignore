@@ -1,0 +1,64 @@
+# MiaoSong — Root .gitignore (Android + Node/TS + Firebase)
+
+# --- Secrets & Local Environment ---
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+keystore.properties
+google-services.json
+**/google-services.json
+serviceAccountKey.json
+*firebase-adminsdk*.json
+
+# --- Android & Gradle ---
+*.iml
+.gradle/
+.kotlin/
+**/.kotlin/
+**/build/
+local.properties
+.idea/
+.cxx/
+captures/
+.externalNativeBuild/
+.navigation/
+output.json
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+*.hprof
+
+# --- Node / TypeScript / Cloud Functions ---
+node_modules/
+**/node_modules/
+**/lib/
+**/dist/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+*.tsbuildinfo
+coverage/
+
+# --- Firebase & Emulator ---
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+pubsub-debug.log
+database-debug.log
+storage-debug.log
+emulator-data/
+
+# --- OS & Editors & Agent ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/
+.agent/
+*.swp
+*.swo
+*~

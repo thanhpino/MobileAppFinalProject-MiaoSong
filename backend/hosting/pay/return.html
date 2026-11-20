@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>Kết quả thanh toán — MiaoSong</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, sans-serif;
+      background: #FFF8F5;
+      color: #27180F;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+    }
+    .box {
+      background: #FFFFFF;
+      border-radius: 24px;
+      padding: 32px 24px;
+      max-width: 380px;
+      box-shadow: 0 12px 32px rgba(39, 24, 15, 0.08);
+    }
+    .btn {
+      display: inline-block;
+      margin-top: 16px;
+      background: #FF6A1A;
+      color: #FFFFFF;
+      text-decoration: none;
+      font-weight: 700;
+      padding: 14px 28px;
+      border-radius: 999px;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>Đang quay về ứng dụng MiaoSong...</h2>
+    <p>Nếu ứng dụng không tự động mở, vui lòng bấm nút bên dưới.</p>
+    <a class="btn" id="backBtn" href="miaosong://pay/return">Quay lại MiaoSong</a>
+  </div>
+  <script>
+    const qs = window.location.search || '';
+    const deepLink = 'miaosong://pay/return' + qs;
+    document.getElementById('backBtn').href = deepLink;
+    window.location.replace(deepLink);
+  </script>
+</body>
+</html>

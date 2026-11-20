@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>MiaoSong (喵送) — Meo một tiếng, món tới liền</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      background: #FFF8F5;
+      color: #27180F;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+    }
+    .card {
+      background: #FFFFFF;
+      border-radius: 24px;
+      padding: 32px 24px;
+      max-width: 420px;
+      box-shadow: 0 12px 32px rgba(39, 24, 15, 0.08);
+      border: 1px solid rgba(255, 106, 26, 0.15);
+    }
+    h1 { color: #FF6A1A; margin: 12px 0 6px; font-size: 28px; }
+    p { color: #5A4137; line-height: 1.5; font-size: 15px; }
+    .btn {
+      display: inline-block;
+      margin-top: 18px;
+      background: #FF6A1A;
+      color: #FFFFFF;
+      text-decoration: none;
+      font-weight: 700;
+      padding: 14px 28px;
+      border-radius: 999px;
+    }
+    .links { margin-top: 20px; font-size: 13px; }
+    .links a { color: #006B5F; text-decoration: none; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>MiaoSong 喵送</h1>
+    <p><strong>Meo một tiếng, món tới liền.</strong><br/>Nền tảng đặt món trực tiếp từ quán quen (D2C F&amp;B) &amp; điều phối giao hàng Lalamove tự động.</p>
+    <a class="btn" id="openAppBtn" href="miaosong://open">Mở ứng dụng MiaoSong</a>
+    <div class="links">
+      <a href="/privacy-policy.html">Chính sách bảo mật (Privacy Policy)</a>
+    </div>
+  </div>
+  <script>
+    const path = window.location.pathname;
+    if (path.startsWith('/s/')) {
+      const slug = path.replace('/s/', '');
+      document.getElementById('openAppBtn').href = 'miaosong://store/' + encodeURIComponent(slug);
+    }
+  </script>
+</body>
+</html>
