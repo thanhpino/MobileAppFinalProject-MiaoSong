@@ -351,13 +351,15 @@ private fun MiaoGreetingBanner(onClick: () -> Unit) {
     Surface(
         color = Color(0xFFFFF2E6),
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.22f)),
+        border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.2f)),
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
@@ -365,36 +367,50 @@ private fun MiaoGreetingBanner(onClick: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f),
             ) {
-                MiaoAnimatedCatLogo(
-                    size = 36.dp,
-                    animated = false,
-                    modifier = Modifier.clip(CircleShape),
-                )
+                Surface(
+                    shape = CircleShape,
+                    color = Color.White,
+                    border = BorderStroke(1.5.dp, MiaoColors.BrandOrange.copy(alpha = 0.28f)),
+                    modifier = Modifier.size(38.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        MiaoAnimatedCatLogo(
+                            size = 34.dp,
+                            animated = false,
+                            modifier = Modifier.clip(CircleShape),
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.width(10.dp))
-                Column {
+                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     Text(
                         text = "MiaoSong chào bạn! 🐾",
                         color = MiaoColors.OnSurface,
-                        fontSize = 13.sp,
+                        fontSize = 13.5.sp,
                         fontWeight = FontWeight.Bold,
+                        maxLines = 1,
                     )
                     Text(
-                        text = "Chạm vào Miu để xem hiệu ứng Loading mèo vẫy tay!",
+                        text = "Hôm nay bạn muốn ăn gì nào?",
                         color = MiaoColors.OnSurfaceVariant,
-                        fontSize = 11.sp,
+                        fontSize = 11.5.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
+            Spacer(modifier = Modifier.width(8.dp))
             Surface(
                 color = MiaoColors.BrandOrange,
                 shape = RoundedCornerShape(999.dp),
+                shadowElevation = 1.dp,
             ) {
                 Text(
                     text = "Freeship 0Đ",
                     color = Color.White,
-                    fontSize = 10.sp,
+                    fontSize = 10.5.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    modifier = Modifier.padding(horizontal = 11.dp, vertical = 5.dp),
                 )
             }
         }
