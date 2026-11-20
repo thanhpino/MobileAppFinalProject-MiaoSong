@@ -39,4 +39,6 @@ jobs:
           java-version: 21
           cache: gradle
       - name: Run SharedPricingVectorsTest (:core:domain:test)
-        run: ./gradlew :core:domain:test --no-daemon
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :core:domain:test --no-daemon
