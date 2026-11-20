@@ -1,0 +1,46 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+actor "Khách hàng" as KH
+actor "Quán" as Q
+actor "Lalamove" as DP <<system>>
+actor "VNPay" as PG <<system>>
+rectangle "MiaoSong Platform" {
+  usecase "Tùy chỉnh món" as UC05
+  usecase "Xem thực đơn" as UC04
+  usecase "Quản lý giỏ hàng" as UC06
+  usecase "Đặt hàng & thanh toán" as UC09
+  usecase "Xem báo giá ship" as UC08
+  usecase "Áp dụng voucher" as UC07
+  usecase "Theo dõi đơn & tài xế" as UC10
+  usecase "Đánh giá đơn" as UC12
+  usecase "Đặt lại đơn" as UC14
+  usecase "Quản lý thực đơn" as UC22
+  usecase "Quản lý voucher" as UC24
+  usecase "Xác nhận đơn" as UC26
+  usecase "Từ chối đơn & hoàn tiền" as UC27
+  usecase "Xem màn bếp" as UC28
+  usecase "Gọi shipper" as UC30
+  usecase "Đổi trạng thái quán" as UC32
+}
+KH --> UC04
+UC04 ..> UC05 : <<include>>
+KH --> UC06
+KH --> UC09
+UC09 ..> UC08 : <<include>>
+UC07 ..> UC09 : <<extend>>
+KH --> UC10
+KH --> UC12
+KH --> UC14
+Q --> UC22
+Q --> UC24
+Q --> UC26
+Q --> UC27
+Q --> UC28
+Q --> UC30
+Q --> UC32
+UC08 --> DP
+UC30 --> DP
+UC09 --> PG
+UC27 --> PG
+@enduml
