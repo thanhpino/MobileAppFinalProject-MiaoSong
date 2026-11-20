@@ -1,7 +1,7 @@
 # 02 — Kiến trúc hệ thống MiaoSong
 
 > Người phụ trách: **Trương Minh Thành** · Review: **Huỳnh Trần Thiên Phú**
-> Liên quan: [01-SRS.md](01-SRS.md) · [04-sequence-diagrams.md](04-sequence-diagrams.md) · [06-state-data-class.md](06-state-data-class.md)
+> Liên quan: [01-SRS.md](01-SRS.md) · [03-use-case-diagrams.md](03-use-case-diagrams.md) · [04-sequence-diagrams.md](04-sequence-diagrams.md) · [05-activity-diagrams.md](05-activity-diagrams.md) · [06-state-data-class.md](06-state-data-class.md) · [07-test-plan.md](07-test-plan.md) · [08-api-contract.md](08-api-contract.md)
 
 ## Mục lục
 1. [Quyết định kiến trúc (ADR)](#1-quyết-định-kiến-trúc-adr)
@@ -25,7 +25,7 @@
 | ADR-02 | **1 app Android, 2 chế độ** theo role | 1 store listing, 1 CI; giống "Kênh Người Bán" của Shopee | 2 app riêng (gấp đôi công phát hành) |
 | ADR-03 | **Firestore** làm DB + kênh realtime | Snapshot listener thay cho WebSocket tự viết | PostgreSQL + Socket.IO (phải tự host) |
 | ADR-04 | **Mọi ghi vào `orders` qua Cloud Functions** | Server là nguồn sự thật về giá & trạng thái | Client ghi trực tiếp (dễ gian lận giá) |
-| ADR-05 | **Strategy + Adapter** cho Delivery và Payment | Thêm Lalamove/Mock, COD/VNPay không sửa luồng đặt đơn | `if/else` theo provider |
+| ADR-05 | **Strategy + Adapter** cho Delivery và Payment | Thêm Lalamove/Mock, COD/ZaloPay không sửa luồng đặt đơn | `if/else` theo provider |
 | ADR-06 | **MockDeliveryProvider** song song Lalamove | Sandbox không có tài xế thật → demo vẫn trọn luồng | Chỉ dùng sandbox |
 | ADR-07 | **Tiền = số nguyên VND** (`Long` / `number` integer) | Tránh sai số dấu phẩy động | `Double` |
 | ADR-08 | **Clean Architecture + MVVM (UDF)** trên Android | Tách UI khỏi logic, test được ViewModel/UseCase | MVC / logic trong Composable |
@@ -41,15 +41,15 @@ flowchart TB
     Q(["🏪 Quán"])
     MS["MiaoSong Platform<br/>Đặt món D2C & điều phối giao hàng"]
     LL["🛵 Lalamove<br/>Giao hàng"]
-    VNP["💳 VNPay<br/>Thanh toán nội địa"]
-    GM["🗺️ Google Maps API<br/>Địa chỉ & bản đồ"]
+    ZLP["💳 ZaloPay<br/>Thanh toán nội địa"]
+    OSM["🗺️ OpenStreetMap<br/>Địa chỉ & bản đồ"]
     FCM["Firebase Cloud Messaging"]
     KH -- "duyệt menu, đặt món, thanh toán, theo dõi, đánh giá" --> MS
     Q -- "quản lý menu, voucher, nhận đơn, bếp, gọi shipper" --> MS
     MS -- "báo giá, tạo chuyến" --> LL
     LL -- "webhook trạng thái, tài xế" --> MS
-    MS <-- "tạo giao dịch, IPN, hoàn tiền" --> VNP
-    MS -- "Places autocomplete, Geocoding" --> GM
+    MS <-- "tạo giao dịch, callback, hoàn tiền" --> ZLP
+    MS -- "Nominatim search, Geocoding" --> OSM
     MS -- "gửi push" --> FCM
     FCM -. "thông báo" .-> KH
     FCM -. "chuông đơn mới" .-> Q
@@ -85,8 +85,8 @@ flowchart TB
     SCH -- "mỗi 5 phút" --> CF
     FCMS -. push .-> APP
     CF <--> LL["Lalamove API v3"]
-    CF <--> VNP["VNPay"]
-    APP --> GM["Google Maps API"]
+    CF <--> ZLP["ZaloPay"]
+    APP --> OSM["OpenStreetMap (Nominatim)"]
 ```
 
 ## 4. Backend — Modular Monolith (Component)
@@ -95,7 +95,7 @@ flowchart TB
 flowchart LR
     subgraph Handlers["handlers — lớp mỏng"]
         HC["onCall: placeOrder, confirmOrder, rejectOrder,<br/>markReady, dispatchDriver, confirmPayment,<br/>getDeliveryQuote, validateVoucher, submitReview"]
-        HW["onRequest: /webhooks/lalamove,<br/>/payments/vnpay/ipn"]
+        HW["onRequest: /webhooks/lalamove,<br/>/payments/zalopay/callback"]
         HT["triggers: onOrderUpdated, scheduler"]
     end
     subgraph Modules["modules"]
@@ -103,7 +103,7 @@ flowchart LR
         PRI["pricing<br/>tính tiền, voucher"]
         ORD["orders<br/>đặt đơn, state machine"]
         DEL["delivery<br/>Lalamove, Mock"]
-        PAY["payment<br/>COD, VNPay"]
+        PAY["payment<br/>COD, ZaloPay"]
         NOT["notification<br/>FCM"]
         REV["review<br/>đánh giá"]
     end
@@ -131,7 +131,7 @@ flowchart LR
 | pricing | `stores/*/vouchers`, `voucherRedemptions` | `calculate()`, `validateVoucher()`, `reserveVoucher(tx)`, `releaseVoucher(tx)` |
 | orders | `orders` | `placeOrder()`, `transition()`, `getOrder()` |
 | delivery | `processedEvents` (LALAMOVE) | `quote()`, `dispatch()`, `cancel()`, `handleWebhook()` |
-| payment | `processedEvents` (VNPAY), `config/payment` | `createPayment()`, `confirm()`, `refund()` |
+| payment | `processedEvents` (ZALOPAY), `config/payment` | `createPayment()`, `confirm()`, `refund()` |
 | notification | `users/*.fcmTokens` (đọc) | `notifyOrderStatus()` |
 | review | `reviews` | `submitReview()` |
 
@@ -193,7 +193,7 @@ flowchart LR
 flowchart LR
     LLW["Webhook Lalamove"] --> DEL["delivery.handleWebhook"]
     DEL -- "DeliveryStatusChanged" --> BUS(("EventBus"))
-    PAYW["IPN VNPay"] --> PAY["payment.confirm"]
+    PAYW["Callback ZaloPay"] --> PAY["payment.confirm"]
     PAY -- "PaymentSucceeded / PaymentRefunded" --> BUS
     BUS --> ORD["orders.transition"]
     ORD -- "ghi orders/{id}" --> FS[("Firestore")]
@@ -273,13 +273,13 @@ flowchart LR
     AAB -- "upload" --> PLAY["Google Play Console<br/>Internal testing"]
     PLAY --> P1["📱 Máy khách"]
     PLAY --> P2["📱 Máy quán"]
-    FB <--> EXT["Lalamove sandbox · VNPay sandbox · Google Maps API"]
+    FB <--> EXT["Lalamove sandbox · ZaloPay sandbox · OpenStreetMap"]
 ```
 
 | Môi trường | Firebase project | Đối tác |
 |---|---|---|
-| local | Emulator Suite | MockProvider, VNPay sandbox qua ngrok |
-| prod (demo) | `miaosong-prod` | Lalamove sandbox + Mock, VNPay sandbox, Google Maps API |
+| local | Emulator Suite | MockProvider, ZaloPay sandbox qua ngrok |
+| prod (demo) | `miaosong-prod` | Lalamove sandbox + Mock, ZaloPay sandbox, OpenStreetMap |
 
 ## 9. Kiến trúc bảo mật
 
@@ -287,8 +287,8 @@ flowchart LR
 |---|---|
 | Danh tính | Firebase Auth; role (`CUSTOMER` / `MERCHANT`) & `storeId` lưu trong **custom claims** (chỉ Functions set) |
 | Dữ liệu | Firestore Rules: khách đọc `orders` có `customerId == uid`; quán đọc `orders` có `storeId == token.storeId`; **client không ghi `orders`, `vouchers.usedCount`, `reviews` trực tiếp** |
-| Secret | API key Lalamove/VNPay trong **Secret Manager** (`defineSecret`), không có trong APK; Google Maps API key giới hạn theo package `vn.miaosong.app` + SHA-1 |
-| Webhook | Lalamove: xác minh chữ ký HMAC; VNPay: `vnp_SecureHash` HMAC-SHA512 |
+| Secret | API key Lalamove/ZaloPay (`key1`, `key2`) trong **Secret Manager** (`defineSecret`), không có trong APK |
+| Webhook | Lalamove: xác minh chữ ký HMAC; ZaloPay: MAC HMAC-SHA256 (`key2`) |
 | Chống lặp | `processedEvents/{source_eventId}`, `idempotencyKey` của đơn |
 | App | R8 obfuscation, HTTPS, App Check (Could) |
 

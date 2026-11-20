@@ -10,7 +10,7 @@
 | [SD-03](#sd-03--chọn-địa-chỉ--báo-giá-ship) | Chọn địa chỉ & báo giá ship | UC02, UC08 |
 | [SD-04](#sd-04--áp-dụng-voucher) | Áp dụng voucher | UC07 |
 | [SD-05](#sd-05--đặt-đơn-cod) | Đặt đơn COD | UC09 |
-| [SD-06](#sd-06--thanh-toán-vnpay) | Thanh toán VNPay | UC09, UC41 |
+| [SD-06](#sd-06--thanh-toán-zalopay) | Thanh toán ZaloPay | UC09, UC41 |
 | [SD-07](#sd-07--quán-nhận--xác-nhận-đơn) | Quán nhận & xác nhận đơn | UC25, UC26 |
 | [SD-08](#sd-08--từ-chối-đơn--hoàn-tiền) | Từ chối đơn & hoàn tiền | UC27 |
 | [SD-09](#sd-09--đóng-gói-tại-bếp--gọi-shipper) | Đóng gói tại bếp & gọi shipper | UC28–UC30 |
@@ -18,6 +18,9 @@
 | [SD-11](#sd-11--phát-hiện-đơn-trễ--hủy-đơn-chưa-thanh-toán) | Phát hiện đơn trễ & hủy đơn chưa thanh toán | UC42, UC43 |
 | [SD-12](#sd-12--đánh-giá-đơn) | Đánh giá đơn | UC12 |
 | [SD-13](#sd-13--đặt-lại-đơn) | Đặt lại đơn | UC14 |
+| [SD-14](#sd-14--nhắn-tin-in-app-realtime) | Nhắn tin in-app realtime | UC16, UC36 |
+| [SD-15](#sd-15--vận-hành-màn-hình-bếp-kds--đóng-gói) | Vận hành màn hình bếp (KDS) & đóng gói | UC28, UC29 |
+| [SD-16](#sd-16--đổi-trạng-thái-quán--lịch-bận-tức-thời) | Đổi trạng thái quán & lịch bận tức thời | UC32, UC33 |
 
 ---
 
@@ -94,15 +97,15 @@ sequenceDiagram
 sequenceDiagram
     actor KH as Khách
     participant APP as MiaoSong
-    participant GM as Google Maps API
+    participant OSM as OpenStreetMap (Nominatim API)
     participant CF as Cloud Functions (delivery)
     participant LL as Lalamove
     KH->>APP: Gõ "12 Nguyễn Văn Bảo"
-    APP->>GM: Places Autocomplete (debounce 300ms)
-    GM-->>APP: danh sách gợi ý
+    APP->>OSM: Search / Nominatim API (debounce 300ms)
+    OSM-->>APP: danh sách gợi ý
     KH->>APP: Chọn gợi ý
-    APP->>GM: Places Details / Geocoding
-    GM-->>APP: lat, lng, địa chỉ chuẩn
+    APP->>OSM: Geocoding / Address Details
+    OSM-->>APP: lat, lng, địa chỉ chuẩn (display_name)
     APP->>CF: getDeliveryQuote(storeId, dropoff)
     CF->>CF: kiểm tra khoảng cách ≤ maxDistanceKm
     alt Ngoài bán kính
@@ -183,7 +186,7 @@ sequenceDiagram
     end
 ```
 
-## SD-06 — Thanh toán VNPay
+## SD-06 — Thanh toán ZaloPay
 
 ```mermaid
 sequenceDiagram
@@ -191,22 +194,24 @@ sequenceDiagram
     participant APP as MiaoSong
     participant CF as Cloud Functions
     participant FS as Firestore
-    participant VNP as VNPay Sandbox
+    participant ZLP as ZaloPay Sandbox
     participant HOST as Firebase Hosting
-    KH->>APP: Chọn VNPay, bấm Đặt
-    APP->>CF: placeOrder(..., VNPAY)
+    KH->>APP: Chọn ZaloPay, bấm Đặt
+    APP->>CF: placeOrder(..., ZALOPAY)
     CF->>FS: tạo đơn status = PENDING_PAYMENT (giữ voucher)
-    CF->>CF: build URL: vnp_Amount = total x 100, vnp_TxnRef = orderId, vnp_SecureHash = HMAC-SHA512
-    CF-->>APP: paymentUrl
-    APP->>VNP: mở Chrome Custom Tab
-    KH->>VNP: nhập thẻ test NCB, OTP
+    CF->>CF: build order: app_id, app_trans_id, amount, mac = HMAC-SHA256
+    CF->>ZLP: POST /v2/create (tạo đơn thanh toán)
+    ZLP-->>CF: order_url, zp_trans_token
+    CF-->>APP: paymentUrl (order_url / applink)
+    APP->>ZLP: mở Chrome Custom Tab / ZaloPay App
+    KH->>ZLP: chọn thẻ / ví test, xác nhận thanh toán
     par Server-to-server
-        VNP->>CF: GET /payments/vnpay/ipn
-        CF->>CF: verify SecureHash, kiểm tra amount, idempotent
+        ZLP->>CF: POST /payments/zalopay/callback (data, mac)
+        CF->>CF: verify MAC (HMAC-SHA256 với key2), parse data, idempotent
         CF->>FS: payment.status = PAID, status = PLACED
-        CF-->>VNP: RspCode 00
+        CF-->>ZLP: {"return_code": 1, "return_message": "success"}
     and Trình duyệt quay về
-        VNP->>HOST: redirect /pay/return?orderId
+        ZLP->>HOST: redirect /pay/return?orderId
         HOST-->>APP: App Link mở lại MiaoSong
     end
     APP->>CF: confirmPayment(orderId)
@@ -256,7 +261,7 @@ sequenceDiagram
     participant PRI as pricing
     participant FS as Firestore
     participant PAY as CF payment
-    participant GW as VNPay
+    participant GW as ZaloPay
     participant KAPP as Máy khách
     Q->>MAPP: "Từ chối đơn" → lý do "Hết nguyên liệu: chả cá"
     MAPP->>ORD: rejectOrder(orderId, OUT_OF_STOCK, "Hết chả cá")
@@ -265,7 +270,7 @@ sequenceDiagram
     ORD-->>MAPP: OK + gợi ý tắt món "Bún chả cá"
     FS-)PAY: onOrderUpdated: REJECTED và payment.status = PAID
     PAY->>FS: refundStatus = PENDING
-    PAY->>GW: POST merchant_webapi refund (vnp_TransactionType = 02)
+    PAY->>GW: POST /v2/refund (m_refund_id, zp_trans_id, amount, mac)
     alt Thành công
         GW-->>PAY: OK
         PAY->>FS: refundStatus = REFUNDED
@@ -411,4 +416,101 @@ sequenceDiagram
     UC-->>UI: ReorderResult(added, skipped, priceChanged)
     UI-->>KH: mở Giỏ hàng + banner "1 món không còn bán, giá đã cập nhật"
 ```
+
+---
+
+## SD-14 — Nhắn tin in-app realtime
+
+```mermaid
+sequenceDiagram
+    actor U1 as Người gửi (Khách/Quán)
+    participant APP1 as App người gửi
+    participant FS as Firestore
+    participant CF as CF onMessageCreated
+    participant FCM as FCM
+    participant APP2 as App người nhận
+    actor U2 as Người nhận (Quán/Khách)
+
+    U1->>APP1: Nhập tin nhắn & bấm "Gửi"
+    APP1->>FS: addDocument(orders/{id}/messages, {senderId, senderRole, text, createdAt})
+    FS-->>APP1: commit OK (UI hiện dấu tích gửi)
+    
+    par Realtime Snapshot
+        FS-)APP2: SnapshotListener onSnapshot(messages)
+        alt Người nhận đang mở màn hình Chat
+            APP2->>APP2: Render tin nhắn mới, tự động cuộn xuống đáy
+            APP2-->>U2: Phát âm thanh popo nhẹ
+        end
+    and Background Push Fallback
+        FS-)CF: trigger onMessageCreated
+        CF->>FS: tra cứu fcmTokens của người nhận
+        alt Người nhận không ở màn Chat / App chạy ngầm
+            CF->>FCM: data message {type: "NEW_MESSAGE", orderId, text}
+            FCM-)APP2: Push Notification "💬 Tin nhắn mới từ {senderName}"
+            U2->>APP2: Chạm vào Push Notification
+            APP2->>APP2: Deep link điều hướng mở thẳng ChatScreen(orderId)
+        end
+    end
+```
+
+---
+
+## SD-15 — Vận hành màn hình bếp (KDS) & đóng gói
+
+```mermaid
+sequenceDiagram
+    participant FS as Firestore
+    participant KDS as Màn hình Bếp (KDS)
+    actor BEP as Đầu bếp
+    participant CF as CF markReady
+    participant QAPP as App quản lý Quán
+
+    FS-)KDS: snapshot orders (status = CONFIRMED)
+    KDS->>KDS: Hiển thị ticket mới (sắp xếp cũ -> mới)
+    KDS->>KDS: Nổi bật cảnh báo dị ứng (nền đỏ), ghi chú (nền vàng)
+    KDS->>KDS: Bắt đầu đồng hồ đếm phút chế biến (elapsedMinutes)
+    BEP->>BEP: Chế biến món theo ticket
+    BEP->>KDS: Chế biến xong, đóng gói, bấm "Đã đóng gói"
+    KDS->>CF: markReady(orderId)
+    CF->>CF: OrderStateMachine.validate(CONFIRMED -> READY)
+    CF->>FS: status = READY, readyAt = now
+    CF-->>KDS: Thành công, vé biến mất khỏi KDS
+    FS-)QAPP: snapshot realtime status = READY
+    QAPP->>QAPP: Chuyển đơn sang tab "Chờ ship", sáng nút "Gọi Shipper"
+```
+
+---
+
+## SD-16 — Đổi trạng thái quán & lịch bận tức thời
+
+```mermaid
+sequenceDiagram
+    actor Q as Chủ quán
+    participant MAPP as App Quán
+    participant FS as Firestore
+    participant KAPP as App Khách
+    participant CF as CF placeOrder
+    actor KH as Khách hàng
+
+    Q->>MAPP: Chọn "Bận 30 phút"
+    MAPP->>FS: update stores/{id} {manualStatus: "BUSY", busyUntil: now + 30m}
+    FS-->>MAPP: Cập nhật thành công, hiện đếm ngược mở lại
+    
+    par Khách đang xem quán
+        FS-)KAPP: snapshot stores/{id}
+        KAPP->>KAPP: StoreStatusResolver tính effectiveStatus = BUSY
+        KAPP-->>KH: Hiện banner "Quán đang bận, nhận đơn lại lúc HH:mm", khóa nút Đặt
+    and Khách cố tình gọi API đặt đơn
+        KH->>CF: placeOrder(storeId, ...)
+        CF->>FS: đọc stores/{id}
+        CF->>CF: kiểm tra effectiveStatus == BUSY
+        CF-->>KH: lỗi STORE_CLOSED {effectiveStatus: "BUSY", reopenAt: timestamp}
+    end
+    
+    opt Hết thời gian bận (now > busyUntil)
+        KAPP->>KAPP: StoreStatusResolver tự động chuyển effectiveStatus = OPEN
+        KAPP-->>KH: Gỡ banner bận, mở lại nút Đặt
+    end
+```
+
 

@@ -1,0 +1,85 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isMerchantOfStore(storeId) {
+      return isSignedIn()
+        && request.auth.token.role == 'MERCHANT'
+        && request.auth.token.storeId == storeId;
+    }
+
+    // 1. Hồ sơ người dùng & địa chỉ giao hàng
+    match /users/{uid} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      // Client không được tự sửa trường role và storeId
+      allow create: if isSignedIn() && request.auth.uid == uid
+        && !request.resource.data.keys().hasAny(['role', 'storeId']);
+      allow update: if isSignedIn() && request.auth.uid == uid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'storeId']);
+
+      match /addresses/{addrId} {
+        allow read, write: if isSignedIn() && request.auth.uid == uid;
+      }
+    }
+
+    // 2. Quán ăn, nhóm món, thực đơn, voucher
+    match /stores/{storeId} {
+      allow read: if true;
+      allow update: if isMerchantOfStore(storeId)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['ratingAvg', 'ratingCount']);
+
+      match /categories/{catId} {
+        allow read: if true;
+        allow write: if isMerchantOfStore(storeId);
+      }
+
+      match /menuItems/{itemId} {
+        allow read: if true;
+        allow write: if isMerchantOfStore(storeId);
+      }
+
+      match /vouchers/{voucherId} {
+        allow read: if isSignedIn();
+        // Quán không được sửa trực tiếp usedCount (do Cloud Functions quản lý trong transaction)
+        allow create: if isMerchantOfStore(storeId) && request.resource.data.usedCount == 0;
+        allow update: if isMerchantOfStore(storeId)
+          && request.resource.data.usedCount == resource.data.usedCount;
+        allow delete: if isMerchantOfStore(storeId);
+      }
+    }
+
+    // 3. Đơn hàng — CHỈ Cloud Functions (Admin SDK) được ghi
+    match /orders/{orderId} {
+      allow read: if isSignedIn() && (
+        resource.data.customerId == request.auth.uid ||
+        isMerchantOfStore(resource.data.storeId)
+      );
+      allow write: if false;
+    }
+
+    // 4. Đánh giá — đọc công khai, chỉ Cloud Functions được ghi
+    match /reviews/{orderId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // 5. Các collection nội bộ của Backend
+    match /voucherRedemptions/{id} {
+      allow read, write: if false;
+    }
+
+    match /processedEvents/{id} {
+      allow read, write: if false;
+    }
+
+    match /config/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}
