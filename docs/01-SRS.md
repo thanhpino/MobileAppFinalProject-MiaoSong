@@ -14,7 +14,7 @@
 Đặc tả đầy đủ yêu cầu chức năng và phi chức năng cho hệ thống cho phép quán ăn nhận đơn trực tiếp từ khách (D2C) và tự động điều phối giao hàng qua Lalamove, loại bỏ việc nhập đơn thủ công.
 
 ### 1.2 Phạm vi
-- **Trong phạm vi:** quản lý menu & tùy chọn, voucher, giỏ hàng, báo giá ship tự động, đặt & thanh toán (COD, VNPay sandbox), xử lý đơn tại quán, màn hình bếp, trạng thái/lịch quán, gọi shipper tự động, đồng bộ tài xế, push notification, đánh giá, đặt lại.
+- **Trong phạm vi:** quản lý menu & tùy chọn, voucher, giỏ hàng, báo giá ship tự động, đặt & thanh toán (COD, ZaloPay sandbox), xử lý đơn tại quán, màn hình bếp, trạng thái/lịch quán, gọi shipper tự động, đồng bộ tài xế, push notification, đánh giá, đặt lại.
 - **Ngoài phạm vi:** chat in-app, web admin, iOS, quản lý tài xế riêng, kế toán/hóa đơn VAT.
 
 ### 1.3 Thuật ngữ
@@ -34,7 +34,7 @@
 ## 2. Mô tả tổng quan
 
 ### 2.1 Bối cảnh sản phẩm
-Hệ thống gồm 1 ứng dụng Android native (Kotlin/Jetpack Compose) với 2 chế độ theo vai trò (Khách Mua / Quán Bán), dùng chung backend Firebase (Auth, Firestore, Cloud Functions, FCM, Storage). Backend là modular monolith trên Cloud Functions, chia module catalog, pricing, orders, delivery, payment, notification; là lớp duy nhất giao tiếp với Lalamove, VNPay.
+Hệ thống gồm 1 ứng dụng Android native (Kotlin/Jetpack Compose) với 2 chế độ theo vai trò (Khách Mua / Quán Bán), dùng chung backend Firebase (Auth, Firestore, Cloud Functions, FCM, Storage). Backend là modular monolith trên Cloud Functions, chia module catalog, pricing, orders, delivery, payment, notification; là lớp duy nhất giao tiếp với Lalamove, ZaloPay.
 
 ### 2.2 Nhóm chức năng chính
 1. Quản lý thực đơn & khuyến mãi (Chủ quán)
@@ -49,8 +49,8 @@ Hệ thống gồm 1 ứng dụng Android native (Kotlin/Jetpack Compose) với 
 | Khách hàng | Người đặt món, 16–45 tuổi, dùng smartphone hằng ngày | Trung bình |
 | Quán (MERCHANT) | Đại diện phía quán ăn (chủ quán, thu ngân, bếp cùng vận hành trên thiết bị của quán); thao tác nhanh giờ cao điểm | Thấp–Trung bình |
 | Đối tác vận chuyển | Hệ thống Lalamove (external) | — |
-| Cổng thanh toán | VNPay (external) | — |
-| Dịch vụ bản đồ | Google Maps API (Places, Geocoding, Maps SDK) | — |
+| Cổng thanh toán | ZaloPay (external) | — |
+| Dịch vụ bản đồ | OpenStreetMap (Nominatim, Geocoding, MapLibre/Osmdroid) | — |
 | FCM | Dịch vụ push (external) | — |
 | Bộ lập lịch | Tác nhân thời gian (Cloud Scheduler) | — |
 
@@ -85,13 +85,14 @@ Android 8.0 (API 26) trở lên, targetSdk 36; cần Internet; phân phối qua 
 | UC06 | Quản lý giỏ hàng | Khách | Must |
 | UC07 | Áp dụng voucher | Khách | Must |
 | UC08 | Xem báo giá vận chuyển | Khách, Đối tác VC | Must |
-| UC09 | Đặt hàng & thanh toán | Khách, VNPay | Must |
+| UC09 | Đặt hàng & thanh toán | Khách, ZaloPay | Must |
 | UC10 | Theo dõi đơn & thông tin tài xế | Khách | Must |
 | UC11 | Nhận push notification | Khách, FCM | Must |
 | UC12 | Đánh giá đơn | Khách | Must |
 | UC13 | Xem lịch sử đơn | Khách | Must |
 | UC14 | Đặt lại đơn | Khách | Must |
 | UC15 | Hủy đơn (trước khi quán xác nhận) | Khách | Should |
+| UC16 | Nhắn tin in-app với tài xế / quán | Khách | Must |
 | UC20 | Đăng nhập quán | Quán | Must |
 | UC21 | Quản lý nhóm món | Quán | Must |
 | UC22 | Quản lý món & nhóm tùy chọn | Quán | Must |
@@ -99,7 +100,7 @@ Android 8.0 (API 26) trở lên, targetSdk 36; cần Internet; phân phối qua 
 | UC24 | Quản lý voucher | Quán | Must |
 | UC25 | Nhận đơn mới (chuông) | Quán, FCM | Must |
 | UC26 | Xác nhận đơn | Quán | Must |
-| UC27 | Từ chối đơn & hoàn tiền | Quán, VNPay | Must |
+| UC27 | Từ chối đơn & hoàn tiền | Quán, ZaloPay | Must |
 | UC28 | Xem màn bếp (KDS) | Quán | Must |
 | UC29 | Đánh dấu đã đóng gói | Quán | Must |
 | UC30 | Gọi shipper | Quán, Lalamove | Must |
@@ -108,8 +109,9 @@ Android 8.0 (API 26) trở lên, targetSdk 36; cần Internet; phân phối qua 
 | UC33 | Cài lịch hoạt động thường ngày & ngày đặc biệt | Quán | Must |
 | UC34 | Xem đánh giá | Quán | Should |
 | UC35 | Thống kê doanh thu ngày | Quán | Could |
+| UC36 | Nhắn tin in-app với khách hàng | Quán | Must |
 | UC40 | Đồng bộ trạng thái tài xế (webhook) | Đối tác VC | Must |
-| UC41 | Xác nhận thanh toán (VNPay IPN) | VNPay | Must |
+| UC41 | Xác nhận thanh toán (ZaloPay Callback) | ZaloPay | Must |
 | UC42 | Phát hiện đơn trễ | Bộ lập lịch | Should |
 | UC43 | Hủy đơn chưa thanh toán quá hạn | Bộ lập lịch | Should |
 | UC44 | Gửi push theo trạng thái | Hệ thống, FCM | Must |
@@ -150,14 +152,14 @@ Android 8.0 (API 26) trở lên, targetSdk 36; cần Internet; phân phối qua 
 ### UC08 — Xem báo giá vận chuyển
 | Mục | Nội dung |
 |---|---|
-| Luồng chính | 1. Khách chọn/nhập địa chỉ (Google Maps Places Autocomplete). 2. Hệ thống geocode ra lat/lng. 3. App gọi `getDeliveryQuote(storeId, dropoff)`. 4. Server gọi provider của quán, trả `fee, distanceKm, quotationId, expiresAt`. 5. App hiển thị "Phí giao hàng 18.000đ · 3,2 km" trước nút Đặt. |
+| Luồng chính | 1. Khách chọn/nhập địa chỉ (OpenStreetMap / Nominatim Search). 2. Hệ thống geocode ra lat/lng. 3. App gọi `getDeliveryQuote(storeId, dropoff)`. 4. Server gọi provider của quán, trả `fee, distanceKm, quotationId, expiresAt`. 5. App hiển thị "Phí giao hàng 18.000đ · 3,2 km" trước nút Đặt. |
 | Luồng thay thế | 4a. Ngoài bán kính phục vụ (> maxDistanceKm của quán) → "Quán chưa giao tới địa chỉ này". 4b. Lalamove lỗi/timeout 8s → thử lại 1 lần; vẫn lỗi → "Chưa lấy được phí ship, thử lại" + nút thử lại; **không cho đặt khi chưa có phí**. 4c. Quote hết hạn → tự báo giá lại khi khách bấm Đặt. |
 
 ### UC09 — Đặt hàng & thanh toán
 | Mục | Nội dung |
 |---|---|
 | Tiền điều kiện | Giỏ hợp lệ, có địa chỉ, có quote còn hạn, quán đang `OPEN` |
-| Luồng chính | 1. Khách xem bảng tiền: Tiền món · Tiền món thêm · Giảm giá · Phí ship · **Tổng**. 2. Chọn phương thức (COD / VNPay). 3. Bấm "Đặt đơn". 4. App gửi `placeOrder` kèm `idempotencyKey`. 5. Server: kiểm tra quán mở → validate từng món/option còn bán & giá → tính lại tiền → transaction giữ voucher → tạo đơn. 6a. COD → trạng thái `PLACED`, gửi chuông cho quán. 6b. VNPay → `PENDING_PAYMENT`, trả URL thanh toán đã ký; app mở Custom Tab; IPN hợp lệ → `PLACED`. 7. App chuyển sang màn Theo dõi đơn. |
+| Luồng chính | 1. Khách xem bảng tiền: Tiền món · Tiền món thêm · Giảm giá · Phí ship · **Tổng**. 2. Chọn phương thức (COD / ZaloPay). 3. Bấm "Đặt đơn". 4. App gửi `placeOrder` kèm `idempotencyKey`. 5. Server: kiểm tra quán mở → validate từng món/option còn bán & giá → tính lại tiền → transaction giữ voucher → tạo đơn. 6a. COD → trạng thái `PLACED`, gửi chuông cho quán. 6b. ZaloPay → `PENDING_PAYMENT`, trả URL thanh toán đã ký HMAC-SHA256; app mở Custom Tab / ZaloPay App; Callback hợp lệ → `PLACED`. 7. App chuyển sang màn Theo dõi đơn. |
 | Luồng thay thế | 5a. Giá server khác giá app (menu vừa đổi) → trả `PRICE_CHANGED` kèm giá mới, app hiện để khách xác nhận lại. 5b. Voucher hết lượt trong lúc đặt → `VOUCHER_EXHAUSTED`, đơn không được tạo. 6b-1. Thanh toán thất bại/hủy → đơn ở `PENDING_PAYMENT`, cho thanh toán lại trong 15 phút. |
 | Ngoại lệ | Bấm đặt 2 lần / mạng chập chờn → cùng idempotencyKey trả về cùng 1 đơn. |
 
@@ -173,7 +175,7 @@ Android 8.0 (API 26) trở lên, targetSdk 36; cần Internet; phân phối qua 
 | Mục | Nội dung |
 |---|---|
 | Tiền điều kiện | Đơn ở `PLACED` hoặc `CONFIRMED` (chưa gọi shipper) |
-| Luồng chính | 1. Chủ quán bấm "Từ chối đơn". 2. Chọn lý do nhanh: Hết nguyên liệu (chọn món/nguyên liệu, VD "Hết chả cá") · Quán quá tải · Sắp đóng cửa · Khác (nhập). 3. Xác nhận. 4. Server chuyển `REJECTED`, hoàn lượt voucher. 5. Nếu đã thanh toán online → gọi API hoàn tiền VNPay (`merchant_webapi` refund), `refundStatus = PENDING` → `REFUNDED`. 6. Push cho khách: "Quán xin lỗi, đơn bị từ chối vì hết chả cá. Tiền sẽ hoàn về trong 1–3 ngày." |
+| Luồng chính | 1. Chủ quán bấm "Từ chối đơn". 2. Chọn lý do nhanh: Hết nguyên liệu (chọn món/nguyên liệu, VD "Hết chả cá") · Quán quá tải · Sắp đóng cửa · Khác (nhập). 3. Xác nhận. 4. Server chuyển `REJECTED`, hoàn lượt voucher. 5. Nếu đã thanh toán online → gọi API hoàn tiền ZaloPay (`/v2/refund`), `refundStatus = PENDING` → `REFUNDED`. 6. Push cho khách: "Quán xin lỗi, đơn bị từ chối vì hết chả cá. Tiền sẽ hoàn về tài khoản." |
 | Luồng thay thế | 2a. Chọn "Hết nguyên liệu" → gợi ý tắt luôn món liên quan (UC23). 5a. Refund lỗi → `refundStatus = FAILED`, hiển thị cảnh báo cho chủ quán để xử lý thủ công. |
 
 ### UC28 — Màn bếp (KDS)
@@ -245,7 +247,7 @@ Android 8.0 (API 26) trở lên, targetSdk 36; cần Internet; phân phối qua 
 | FR-SHIP-01 | Tự động lấy báo giá ship theo khoảng cách thực tế khi chọn địa chỉ | Must |
 | FR-SHIP-02 | Hiển thị phí ship và khoảng cách trước khi xác nhận đặt | Must |
 | FR-PAY-01 | Hỗ trợ COD | Must |
-| FR-PAY-02 | Hỗ trợ VNPay sandbox: tạo URL thanh toán, nhận IPN, hoàn tiền | Must |
+| FR-PAY-02 | Hỗ trợ ZaloPay sandbox: tạo URL thanh toán, nhận Callback, hoàn tiền | Must |
 | FR-ORD-01 | Hiển thị bảng tiền: tiền món, tiền món thêm, giảm giá, phí ship, tổng | Must |
 | FR-ORD-02 | Server tính lại toàn bộ tiền khi đặt; từ chối nếu lệch | Must |
 | FR-ORD-03 | Chống tạo đơn trùng bằng idempotency key | Must |
@@ -309,7 +311,7 @@ Android 8.0 (API 26) trở lên, targetSdk 36; cần Internet; phân phối qua 
 | BR-ORD-03 | Đơn `PENDING_PAYMENT` quá 15 phút tự hủy |
 | BR-PAY-01 | Số tiền thanh toán online luôn do server tính; client không gửi số tiền |
 | BR-PAY-03 | Hoàn tiền toàn phần, đúng cổng đã thanh toán; COD không phát sinh hoàn tiền |
-| BR-PAY-04 | Mọi callback thanh toán phải xác minh chữ ký VNPay HMAC-SHA512 và xử lý idempotent |
+| BR-PAY-04 | Mọi callback thanh toán phải xác minh chữ ký ZaloPay HMAC-SHA256 và xử lý idempotent |
 | BR-STORE-01 | Trạng thái hiệu lực: Đóng thủ công > Ngày đặc biệt > Bận còn hạn > Lịch tuần |
 | BR-RV-01 | Mỗi đơn đánh giá 1 lần, trong 7 ngày kể từ khi hoàn thành |
 
@@ -348,7 +350,7 @@ Android 8.0 (API 26) trở lên, targetSdk 36; cần Internet; phân phối qua 
 | `getDeliveryQuote` | Khách | storeId, dropoff{lat,lng,address} | fee, distanceKm, quotationId, expiresAt |
 | `validateVoucher` | Khách | storeId, code, subtotal | discount hoặc errorCode |
 | `placeOrder` | Khách | storeId, items[], addressId, quotationId, voucherCode?, paymentMethod, idempotencyKey | orderId, paymentUrl? |
-| `confirmPayment` | Khách | orderId | paymentStatus (đối soát trạng thái thanh toán VNPay) |
+| `confirmPayment` | Khách | orderId | paymentStatus (đối soát trạng thái thanh toán ZaloPay) |
 | `cancelOrder` | Khách | orderId | ok |
 | `confirmOrder` | Quán | orderId | ok |
 | `rejectOrder` | Quán | orderId, reasonCode, reasonText | ok, refundStatus |
@@ -362,12 +364,12 @@ Mã lỗi chuẩn: `STORE_CLOSED`, `ITEM_UNAVAILABLE`, `PRICE_CHANGED`, `QUOTE_E
 | Endpoint | Nguồn |
 |---|---|
 | `POST /webhooks/lalamove` | Lalamove |
-| `GET /payments/vnpay/return` · `/pay/return` | Trang trả về sau thanh toán (App Link quay lại app) |
-| `GET /payments/vnpay/ipn` | VNPay |
+| `GET /payments/zalopay/return` · `/pay/return` | Trang trả về sau thanh toán (App Link quay lại app) |
+| `POST /payments/zalopay/callback` | ZaloPay |
 | `POST /dev/mock-delivery/advance` | Chỉ môi trường dev — giả lập tài xế |
 
 ### 8.3 Dịch vụ bên thứ ba
-Lalamove API v3 sandbox, market VN (quotations, orders, driver detail, webhook) · VNPay sandbox (pay URL HMAC-SHA512, IPN, refund) · Google Maps Platform (Maps SDK for Android, Places API Autocomplete, Geocoding API) · FCM HTTP v1.
+Lalamove API v3 sandbox, market VN (quotations, orders, driver detail, webhook) · ZaloPay sandbox (pay URL HMAC-SHA256, Callback, refund) · OpenStreetMap (Nominatim API Search/Autocomplete, Geocoding, MapLibre/Osmdroid) · FCM HTTP v1.
 
 ---
 
@@ -397,7 +399,7 @@ Lalamove API v3 sandbox, market VN (quotations, orders, driver detail, webhook) 
 | AC-03 | **Given** subtotal 15.000đ, voucher cố định 20.000đ, ship 18.000đ, **then** tổng = 18.000đ (không trừ vào ship) |
 | AC-04 | **Given** voucher còn 1 lượt, **when** 2 khách đặt đồng thời, **then** chỉ 1 đơn dùng được |
 | AC-05 | **Given** đơn mới, **when** app quán ở nền, **then** chuông kêu trong ≤ 5s |
-| AC-06 | **Given** đơn đã trả VNPay, **when** quán từ chối "Hết chả cá", **then** khách nhận push có lý do và refundStatus chuyển REFUNDED |
+| AC-06 | **Given** đơn đã trả ZaloPay, **when** quán từ chối "Hết chả cá", **then** khách nhận push có lý do và refundStatus chuyển REFUNDED |
 | AC-07 | **Given** đơn READY, **when** bấm Gọi Shipper và provider gán tài xế, **then** khách thấy tên, SĐT, biển số trong ≤ 5s |
 | AC-08 | **Given** webhook cùng eventId gửi 3 lần, **then** chỉ 1 lần cập nhật và 1 push |
 | AC-09 | **Given** quán đặt "Bận 30 phút", **then** khách không đặt được và thấy "Mở lại lúc HH:mm"; sau 30 phút tự mở lại |

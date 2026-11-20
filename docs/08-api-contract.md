@@ -61,7 +61,7 @@
 | `VOUCHER_USER_LIMIT` | `resource-exhausted` | Khách đã dùng đủ `perUserLimit` lần cho mã này | `{ perUserLimit }` |
 | `INVALID_TRANSITION` | `failed-precondition` | Chuyển trạng thái đơn vi phạm `OrderStateMachine` | `{ currentStatus, targetStatus }` |
 | `DISPATCH_FAILED` | `unavailable` | Lalamove từ chối tạo chuyến khi quán bấm "Gọi Shipper" | `{ providerMessage }` |
-| `REFUND_FAILED` | `internal` | Gọi API hoàn tiền VNPay thất bại | `{ gateway, gatewayCode }` |
+| `REFUND_FAILED` | `internal` | Gọi API hoàn tiền ZaloPay thất bại | `{ gateway, gatewayCode }` |
 
 ---
 
@@ -131,7 +131,7 @@
     },
     "quotationId": "qt_lalamove_998172",
     "voucherCode": "MIAO10",
-    "paymentMethod": "VNPAY",
+    "paymentMethod": "ZALOPAY",
     "expectedPricing": {
       "subtotal": 131000,
       "discount": 13100,
@@ -184,9 +184,9 @@
       "total": 135900
     },
     "payment": {
-      "method": "VNPAY",
+      "method": "ZALOPAY",
       "amountVnd": 135900,
-      "paymentUrl": "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?vnp_Amount=13590000&..."
+      "paymentUrl": "https://sb-openapi.zalopay.vn/v2/gateway/pay?order=..."
     }
   }
   ```
@@ -270,7 +270,7 @@
 | Endpoint | Method | Cơ chế xác thực | Xử lý Idempotency |
 |---|---|---|---|
 | `/webhooks/lalamove` | `POST` | Kiểm tra HMAC-SHA256 trong header `Authorization` của Lalamove | Lưu `processedEvents/LALAMOVE_{eventId}` trong Firestore Transaction |
-| `/payments/vnpay/ipn` | `GET` | Sắp xếp tham số `vnp_*` theo alphabet, băm HMAC-SHA512 với `vnp_HashSecret`, đối chiếu `vnp_SecureHash` và `vnp_Amount == order.total * 100` | Lưu `processedEvents/VNPAY_{vnp_TransactionNo}` |
+| `/payments/zalopay/callback` | `POST` | Xác minh MAC HMAC-SHA256 với `key2` của ZaloPay, đối chiếu `amount` và trạng thái | Lưu `processedEvents/ZALOPAY_{app_trans_id}` |
 | `/dev/mock-delivery/advance` | `POST` | Chỉ bật khi `store.deliveryProvider == "MOCK"` hoặc môi trường Emulator; yêu cầu token `MERCHANT` | Cho phép bấm chuyển từng chặng `DRIVER_ASSIGNED → ARRIVED_AT_STORE → PICKED_UP → DELIVERING → COMPLETED` khi demo |
 
 **Payload mẫu của `/dev/mock-delivery/advance` (dùng khi demo nếu sandbox Lalamove không có tài xế nhận):**
@@ -304,7 +304,7 @@ Mọi push gửi từ module `notification` đều chứa cả `notification` (�
   },
   "notification": {
     "title": "🔔 Đơn mới #MS-261120-0012",
-    "body": "2 món · 135.900đ (Đã thanh toán VNPay)"
+    "body": "2 món · 135.900đ (Đã thanh toán ZaloPay)"
   },
   "data": {
     "type": "NEW_ORDER",

@@ -1,0 +1,155 @@
+@startuml MiaoSong_TongThe
+title Sơ đồ Use Case Tổng thể Hệ thống MiaoSong (D2C F&B Platform)
+left to right direction
+
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+skinparam roundcorner 10
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+skinparam actor {
+    BorderColor #8A57E8
+    BackgroundColor #F3EDF7
+    FontColor #212121
+    FontSize 12
+}
+
+skinparam usecase {
+    BorderColor #E65100
+    BackgroundColor #FFF8E1
+    FontColor #212121
+    FontSize 12
+    ArrowColor #37474F
+}
+
+skinparam rectangle {
+    BorderColor #9E9E9E
+    BackgroundColor #FAFAFA
+    FontColor #212121
+    FontSize 13
+}
+
+skinparam package {
+    BorderColor #BDBDBD
+    BackgroundColor #F5F5F5
+    FontColor #37474F
+    FontSize 12
+}
+
+skinparam arrow {
+    Color #37474F
+    FontColor #455A64
+    FontSize 11
+}
+
+
+actor "Khách hàng\n(CUSTOMER)" as KH
+actor "Quán ăn\n(MERCHANT)" as Q
+
+actor "Lalamove API\n<<Giao vận>>" as LL <<System>>
+actor "ZaloPay Sandbox\n<<Thanh toán>>" as ZLP <<System>>
+actor "OpenStreetMap\n(OSM / Nominatim)" as OSM <<System>>
+actor "FCM\n<<Push Notification>>" as FCM <<System>>
+actor "Cloud Scheduler\n<<Bộ lập lịch>>" as SCH <<Time>>
+
+rectangle "Nền tảng MiaoSong (D2C F&B Platform)" {
+    package "Phân hệ Khách hàng" {
+        usecase "UC01: Đăng nhập / Đăng ký" as UC01
+        usecase "UC02: Quản lý địa chỉ nhận hàng" as UC02
+        usecase "UC04: Xem thực đơn theo nhóm" as UC04
+        usecase "UC05: Tùy chỉnh món (Size / Topping)" as UC05
+        usecase "UC06: Quản lý giỏ hàng" as UC06
+        usecase "UC07: Áp dụng voucher" as UC07
+        usecase "UC08: Xem báo giá ship theo km" as UC08
+        usecase "UC09: Đặt hàng & Thanh toán (COD / ZaloPay)" as UC09
+        usecase "UC10: Theo dõi đơn & Thẻ tài xế" as UC10
+        usecase "UC12: Đánh giá đơn (1-5 sao)" as UC12
+        usecase "UC13: Xem lịch sử đơn hàng" as UC13
+        usecase "UC14: Đặt lại đơn này (Reorder)" as UC14
+        usecase "UC15: Hủy đơn chưa xác nhận" as UC15
+        usecase "UC16: Nhắn tin in-app với Tài xế / Quán" as UC16
+    }
+
+    package "Phân hệ Quán & Bếp" {
+        usecase "UC20: Đăng nhập tài khoản Quán" as UC20
+        usecase "UC21: Quản lý danh mục món" as UC21
+        usecase "UC22: Quản lý món & nhóm tùy chọn" as UC22
+        usecase "UC23: Bật/tắt món hoặc option hết hàng" as UC23
+        usecase "UC24: Quản lý mã giảm giá (Voucher)" as UC24
+        usecase "UC25: Nhận đơn mới (Chuông báo)" as UC25
+        usecase "UC26: Xác nhận đơn hàng" as UC26
+        usecase "UC27: Từ chối đơn & Hoàn tiền tự động" as UC27
+        usecase "UC28: Vận hành màn hình bếp (KDS)" as UC28
+        usecase "UC29: Đánh dấu đã đóng gói" as UC29
+        usecase "UC30: Gọi Shipper Lalamove" as UC30
+        usecase "UC31: Theo dõi giao hàng & Cảnh báo trễ" as UC31
+        usecase "UC32: Đổi trạng thái (Mở / Bận / Đóng)" as UC32
+        usecase "UC33: Cài đặt lịch hoạt động thường ngày" as UC33
+        usecase "UC34: Xem đánh giá khách hàng" as UC34
+        usecase "UC35: Thống kê doanh thu ngày" as UC35
+        usecase "UC36: Nhắn tin in-app với Khách hàng" as UC36
+    }
+
+    package "Tác vụ Tích hợp & Nền" {
+        usecase "UC40: Đồng bộ tài xế qua Webhook" as UC40
+        usecase "UC41: Xác nhận thanh toán qua Callback" as UC41
+        usecase "UC42: Phát hiện & Cảnh báo đơn trễ" as UC42
+        usecase "UC43: Tự động hủy đơn quá hạn 15 phút" as UC43
+        usecase "UC44: Gửi Push Notification trạng thái" as UC44
+    }
+}
+
+KH --> UC01
+KH --> UC02
+KH --> UC04
+KH --> UC06
+KH --> UC09
+KH --> UC10
+KH --> UC13
+KH --> UC16
+
+Q --> UC20
+Q --> UC21
+Q --> UC22
+Q --> UC23
+Q --> UC24
+Q --> UC25
+Q --> UC28
+Q --> UC30
+Q --> UC31
+Q --> UC32
+Q --> UC33
+Q --> UC34
+Q --> UC35
+Q --> UC36
+
+UC04 ..> UC05 : <<include>>
+UC09 ..> UC08 : <<include>>
+UC07 ..> UC09 : <<extend>>
+UC15 ..> UC09 : <<extend>>
+UC16 ..> UC10 : <<extend>>
+UC12 ..> UC10 : <<extend>>
+UC14 ..> UC13 : <<extend>>
+
+UC26 ..> UC25 : <<extend>>
+UC27 ..> UC25 : <<extend>>
+UC27 ..> UC23 : <<include>>
+UC28 ..> UC29 : <<include>>
+UC30 ..> UC29 : <<include>>
+
+UC02 <--> OSM
+UC08 <--> LL
+UC30 --> LL
+LL --> UC40
+UC40 ..> UC10 : <<include>>
+
+UC09 <--> ZLP
+ZLP --> UC41
+UC27 --> ZLP : <<Hoàn tiền>>
+
+FCM ..> UC25 : <<kích hoạt chuông>>
+UC44 --> FCM
+SCH --> UC42
+SCH --> UC43
+@enduml
