@@ -2,7 +2,7 @@
 
 > Đề tài: Nền tảng đặt món & điều phối giao hàng tự động (D2C F&B) · Môn Phát triển ứng dụng di động HK1/2026-2027
 > Nhóm **2 người** · **12 ngày (20/11 → 01/12/2026)** · Đầu ra: app Android tải từ CH Play
-> Giao hàng: **Lalamove** (chính) · Thanh toán: **COD + VNPay sandbox**
+> Giao hàng: **Lalamove** (chính) · Thanh toán: **COD + ZaloPay sandbox**
 > SRS đầy đủ: [01-SRS.md](01-SRS.md)
 
 ---
@@ -37,14 +37,14 @@ backend/functions/src/
 │   ├── pricing/            # tính tiền, voucher (thuần logic, không I/O)
 │   ├── orders/             # đặt đơn, state machine  ← module trung tâm
 │   ├── delivery/           # Lalamove, Mock
-│   ├── payment/            # COD, VNPay
+│   ├── payment/            # COD, ZaloPay
 │   └── notification/       # FCM
 │       Mỗi module có cấu trúc:
 │       ├── index.ts        # PUBLIC API — thứ duy nhất module khác được import
 │       ├── domain/         # entity, value object, rule (không phụ thuộc Firebase)
 │       ├── application/    # use case: PlaceOrder, DispatchDriver...
 │       ├── ports/          # interface: OrderRepository, DeliveryProvider, PaymentGateway
-│       ├── adapters/       # Firestore repo, LalamoveAdapter, VnpayGateway
+│       ├── adapters/       # Firestore repo, LalamoveAdapter, ZalopayGateway
 │       └── handlers/       # onCall / onRequest / trigger (lớp mỏng, chỉ parse + gọi use case)
 ├── shared/                 # kernel dùng chung: Money, Result, errors, idempotency, logger
 └── index.ts                # export toàn bộ Cloud Functions
@@ -99,7 +99,7 @@ flowchart LR
 
 1. **1 app Android duy nhất, phân quyền theo vai trò** (như Shopee có "Kênh Người Bán" trong cùng app). Đăng nhập tài khoản quán → mở *Chế độ Quán*; tài khoản thường → *Chế độ Khách*. Chỉ cần **1 lần làm store listing, 1 bộ CI**; vẫn tách rõ `feature-customer` / `feature-merchant` để sau này tách thành 2 app bằng product flavor.
 2. **Modular monolith serverless** (mục 0).
-3. **Không có secret trong APK** — Lalamove, VNPay đều gọi qua Cloud Functions.
+3. **Không có secret trong APK** — Lalamove, ZaloPay đều gọi qua Cloud Functions.
 4. **Server là nguồn sự thật về giá**; dùng chung test vector JSON cho Kotlin & TypeScript.
 5. **Tiền = `Long` VND.** Toàn bộ hệ thống thống nhất dùng số nguyên VND, không dùng `Double`.
 6. **Strategy cho cả Delivery và Payment** → thêm provider không phải sửa luồng đặt đơn.
@@ -113,7 +113,7 @@ flowchart LR
 
 | Mức | Nội dung |
 |---|---|
-| **Must** | Toàn bộ 5 nhóm nghiệp vụ của đề · Lalamove sandbox (báo giá + tạo chuyến + webhook) · MockProvider · COD · VNPay (thanh toán + IPN + hoàn tiền) · push FCM · đánh giá · đặt lại |
+| **Must** | Toàn bộ 5 nhóm nghiệp vụ của đề · Lalamove sandbox (báo giá + tạo chuyến + webhook) · MockProvider · COD · ZaloPay (thanh toán + Callback + hoàn tiền) · push FCM · đánh giá · đặt lại |
 | **Should** | Deep link mở thẳng quán · khách tự hủy đơn khi quán chưa nhận · tự hủy đơn chưa thanh toán sau 15 phút · dark mode |
 | **Could** | Thống kê doanh thu ngày · bản đồ vị trí tài xế · bố cục tablet ngang cho màn bếp · đăng nhập OTP |
 | **Won't** | AhaMove (chỉ để sẵn interface), chat, web admin, iOS, đa ngôn ngữ, microservices |
@@ -127,8 +127,8 @@ flowchart LR
 | Khách hàng | Primary | Duyệt menu, tùy chỉnh, đặt, thanh toán, theo dõi, đánh giá, đặt lại |
 | Quán (MERCHANT) | Primary | Đại diện toàn bộ phía quán (chủ quán, thu ngân, bếp dùng chung 1 vai trò hệ thống): menu, voucher, nhận/từ chối đơn, màn bếp (KDS), gọi shipper, trạng thái & lịch quán |
 | Lalamove | Secondary | Báo giá, tạo chuyến, webhook tài xế/trạng thái |
-| VNPay | Secondary | Thanh toán nội địa, IPN, hoàn tiền |
-| Google Maps API | Secondary | Places Autocomplete, Geocoding, Maps SDK |
+| ZaloPay | Secondary | Thanh toán nội địa, Callback, hoàn tiền |
+| OpenStreetMap | Secondary | Places Search (Nominatim), Geocoding, MapLibre/Osmdroid |
 | FCM | Secondary | Push notification |
 | Bộ lập lịch | Time actor | Hủy đơn chưa thanh toán quá hạn |
 
@@ -144,9 +144,9 @@ flowchart LR
 | DI · Async | Hilt · Coroutines/Flow |
 | Điều hướng | Navigation Compose type-safe, 2 nav graph theo role, deep link |
 | Local | Room (giỏ hàng) · DataStore (cài đặt, role) |
-| Mạng | Firebase SDK (Firestore, Functions callable, Auth, Storage, FCM) · Google Maps SDK / Places SDK |
-| Thanh toán | **Chrome Custom Tabs** mở URL thanh toán VNPay → quay về bằng App Link `miaosong.web.app/pay/return` |
-| Ảnh · Bản đồ | Coil 3 · Maps Compose + Google Places / Geocoding API |
+| Mạng | Firebase SDK (Firestore, Functions callable, Auth, Storage, FCM) · OpenStreetMap / Nominatim API |
+| Thanh toán | **Chrome Custom Tabs** mở URL thanh toán ZaloPay → quay về bằng App Link `miaosong.web.app/pay/return` |
+| Ảnh · Bản đồ | Coil 3 · MapLibre Compose / Osmdroid + Nominatim Geocoding API |
 | Nền | Foreground Service (chế độ quán khi đang mở cửa) · WorkManager |
 | Chất lượng | Crashlytics · ktlint · JUnit · MockK · Turbine · Compose UI test |
 | Build | Version Catalog · minSdk 26 · **targetSdk 36** · R8 · GitHub Actions → AAB |
@@ -158,7 +158,7 @@ flowchart LR
 | Logic | Cloud Functions 2nd gen, TypeScript, `asia-southeast1` |
 | DB | Firestore (realtime) |
 | Hosting | Firebase Hosting: privacy policy, trang return thanh toán, `assetlinks.json` cho App Link |
-| Đối tác | Lalamove API v3 (sandbox, market VN) · VNPay sandbox (HMAC-SHA512) · Google Maps API |
+| Đối tác | Lalamove API v3 (sandbox, market VN) · ZaloPay sandbox (HMAC-SHA256) · OpenStreetMap |
 | Dev | Firebase Emulator Suite · `ngrok` để nhận webhook khi chạy local |
 
 ---
@@ -189,13 +189,13 @@ flowchart TB
     FS[("Firestore")]
     FCM["FCM"]
     LALA["Lalamove"]
-    VNP["VNPay"]
+    ZLP["ZaloPay"]
     CORE -- "realtime read" --> FS
     CORE -- "callable" --> ORD
     BE --> FS
     NOTI --> FCM
     DEL <--> LALA
-    PAY <--> VNP
+    PAY <--> ZLP
     FCM -. push .-> App
 ```
 
@@ -209,8 +209,8 @@ miaosong/
 │   ├── feature-customer/          # home, store, item sheet, cart, checkout, payment, tracking, history, review
 │   ├── feature-merchant/          # inbox, kitchen, dispatch, menu, voucher, store status, schedule, reviews
 │   ├── core/model · core/domain · core/data · core/designsystem · core/common
-├── backend/functions/src/
-│   ├── modules/    catalog · pricing · orders · delivery (lalamove, mock) · payment (cod, vnpay) · notification
+│   ├── backend/functions/src/
+│   ├── modules/    catalog · pricing · orders · delivery (lalamove, mock) · payment (cod, zalopay) · notification
 │   │               mỗi module: index.ts · domain/ · application/ · ports/ · adapters/ · handlers/  (xem §0.1)
 │   └── shared/     money.ts · result.ts · errors.ts · idempotency.ts · eventBus.ts
 ├── shared/test-vectors/pricing.json
@@ -225,13 +225,13 @@ miaosong/
 |---|---|
 | Clean Architecture / MVVM / UDF | Mọi màn hình |
 | Repository · Use Case | `MenuRepository`, `CartRepository`, `PlaceOrderUseCase`, `ReorderUseCase`... |
-| **Strategy + Adapter** | `DeliveryProvider` (Lalamove, Mock) · `PaymentGateway` (COD, VNPay) |
+| **Strategy + Adapter** | `DeliveryProvider` (Lalamove, Mock) · `PaymentGateway` (COD, ZaloPay) |
 | Factory | `DeliveryProviderFactory`, `PaymentGatewayFactory` |
 | State | `OrderStateMachine` |
 | Observer | Firestore snapshot → Flow → Compose |
 | Specification | Điều kiện voucher kết hợp AND |
 | Value Object | `Money`, `CartLineKey` |
-| Idempotency Key | `placeOrder`, webhook Lalamove, IPN VNPay |
+| Idempotency Key | `placeOrder`, webhook Lalamove, Callback ZaloPay |
 | Domain Events | `OrderStatusChanged` → notification (chỗ để tách service sau này) |
 
 ```mermaid
@@ -243,9 +243,9 @@ classDiagram
         +refund(payment, amount) RefundResult
     }
     class CodGateway
-    class VnpayGateway
+    class ZalopayGateway
     PaymentGateway <|.. CodGateway
-    PaymentGateway <|.. VnpayGateway
+    PaymentGateway <|.. ZalopayGateway
     class DeliveryProvider {
         <<interface>>
         +quote(pickup, dropoff) Quote
@@ -284,7 +284,7 @@ Voucher không trừ vào phí ship; tổng hóa đơn không âm.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PENDING_PAYMENT: VNPay
+    [*] --> PENDING_PAYMENT: ZaloPay
     [*] --> PLACED: COD
     PENDING_PAYMENT --> PLACED: thanh toán thành công
     PENDING_PAYMENT --> CANCELLED: quá 15 phút / khách hủy
@@ -307,29 +307,29 @@ stateDiagram-v2
 ```
 `refundStatus`: `NONE → PENDING → REFUNDED | FAILED` — tự kích hoạt khi đơn đã trả online bị REJECTED/CANCELLED.
 
-### 8.5 Luồng thanh toán online (VNPay Sandbox)
+### 8.5 Luồng thanh toán online (ZaloPay Sandbox)
 
 ```mermaid
 sequenceDiagram
     actor KH as Khách
     participant APP as MiaoSong
     participant CF as Cloud Functions
-    participant GW as VNPay Sandbox
-    KH->>APP: Chọn VNPay, bấm Đặt
+    participant GW as ZaloPay Sandbox
+    KH->>APP: Chọn ZaloPay, bấm Đặt
     APP->>CF: placeOrder(..., method, idempotencyKey)
     CF->>CF: tính lại tiền, giữ voucher, status = PENDING_PAYMENT
-    CF->>GW: tạo URL thanh toán ký HMAC-SHA512
-    CF-->>APP: paymentUrl
-    APP->>GW: mở Custom Tab
+    CF->>GW: POST /v2/create tạo đơn ký HMAC-SHA256
+    CF-->>APP: paymentUrl (order_url / applink)
+    APP->>GW: mở Custom Tab / ZaloPay App
     KH->>GW: thanh toán (tài khoản sandbox)
-    GW-->>CF: VNPay IPN (server-to-server)
+    GW-->>CF: POST /payments/zalopay/callback (server-to-server)
     GW-->>APP: redirect về miaosong.web.app/pay/return
     APP->>CF: confirmPayment(orderId) (đối soát trạng thái)
-    CF->>CF: xác minh chữ ký HMAC-SHA512, idempotent
+    CF->>CF: xác minh chữ ký HMAC-SHA256 (key2), idempotent
     CF-->>APP: status = PLACED
     CF-->>APP: realtime cập nhật màn theo dõi đơn
 ```
-Hoàn tiền: VNPay `refund` API (`merchant_webapi`).
+Hoàn tiền: ZaloPay `refund` API (`/v2/refund`).
 
 ### 8.6 Gọi shipper & đồng bộ tài xế
 
@@ -384,9 +384,9 @@ erDiagram
 | `stores/{id}/categories` | name, sortOrder |
 | `stores/{id}/menuItems` | categoryId, name, description, imageUrl, basePrice, isAvailable, optionGroups[{id, name, type SINGLE/MULTI, required, min, max, options[{id, name, priceDelta, isAvailable}]}] |
 | `stores/{id}/vouchers` | code, type PERCENT/FIXED, value, maxDiscount, minOrder, startAt, endAt, usageLimit, usedCount, perUserLimit, isActive |
-| `orders/{id}` | code `MS-241120-0012`, customerId, storeId, items[snapshot], pricing{subtotal, discount, shippingFee, total}, voucherCode, address, **payment{method COD/VNPAY, status, amountVnd, gatewayTxnId}**, refundStatus, status, statusHistory[], delivery{provider, quotationId, quoteExpiresAt, externalId, driver{name, phone, plate}, shareLink}, rejectReason, idempotencyKey, createdAt |
+| `orders/{id}` | code `MS-241120-0012`, customerId, storeId, items[snapshot], pricing{subtotal, discount, shippingFee, total}, voucherCode, address, **payment{method COD/ZALOPAY, status, amountVnd, gatewayTxnId}**, refundStatus, status, statusHistory[], delivery{provider, quotationId, quoteExpiresAt, externalId, driver{name, phone, plate}, shareLink}, rejectReason, idempotencyKey, createdAt |
 | `reviews/{orderId}` | storeId, customerId, stars, comment, tags[] |
-| `processedEvents/{id}` | source (LALAMOVE/VNPAY), receivedAt |
+| `processedEvents/{id}` | source (LALAMOVE/ZALOPAY), receivedAt |
 | `config/payment` | pendingPaymentTtlMin |
 
 ---
@@ -415,7 +415,7 @@ erDiagram
 - Microcopy giọng mèo thân thiện: *"Meo~ quán đang nấu cho bạn nè"*, *"Hết chả cá mất rồi, quán xin lỗi nha 😿"*, *"Ship 18.000đ · 3,2 km"*.
 
 ### Màn hình
-**Chế độ Khách (12 màn):** Onboarding · Đăng nhập · Home · Trang quán (tab nhóm món sticky) · Bottom sheet tùy chỉnh · Giỏ hàng · Checkout (địa chỉ, báo giá ship, voucher, COD/VNPay, bảng tiền) · Kết quả thanh toán · Theo dõi đơn (timeline + thẻ tài xế) · Lịch sử · Đánh giá · Hồ sơ & địa chỉ.
+**Chế độ Khách (12 màn):** Onboarding · Đăng nhập · Home · Trang quán (tab nhóm món sticky) · Bottom sheet tùy chỉnh · Giỏ hàng · Checkout (địa chỉ, báo giá ship, voucher, COD/ZaloPay, bảng tiền) · Kết quả thanh toán · Theo dõi đơn (timeline + thẻ tài xế) · Lịch sử · Đánh giá · Hồ sơ & địa chỉ.
 
 **Chế độ Quán (9 màn):** Inbox đơn (Mới/Đang làm/Chờ ship/Đang giao) · Chi tiết đơn + từ chối có lý do · **Màn bếp** · Gọi shipper & theo dõi (badge đỏ khi trễ) · Menu & option group · Voucher · Trạng thái quán 1 chạm · Lịch hoạt động · Đánh giá.
 
@@ -427,7 +427,7 @@ Công cụ: **Stitch MCP** (đã kết nối) để dựng mockup từ token →
 
 | | **P1 — Backend & Chế độ Quán (vận hành đơn)** | **P2 — Android Khách & Design System** |
 |---|---|---|
-| Backend | Firebase, Rules, custom claims, seed data · pricing + voucher + test vectors · placeOrder, state machine · Lalamove adapter + webhook + Mock simulator · VNPay + IPN + refund · FCM trigger · scheduler hủy đơn chưa thanh toán | — |
+| Backend | Firebase, Rules, custom claims, seed data · pricing + voucher + test vectors · placeOrder, state machine · Lalamove adapter + webhook + Mock simulator · ZaloPay + Callback + refund · FCM trigger · scheduler hủy đơn chưa thanh toán | — |
 | Android | Chế độ Quán phần đơn hàng: inbox + chuông + foreground service, chi tiết/xác nhận/từ chối, màn bếp, gọi shipper & theo dõi | `core:designsystem`, auth & role router · toàn bộ Chế độ Khách · Chế độ Quán phần CRUD: menu & option group, voucher, trạng thái & lịch, xem đánh giá |
 | Release | Ký app, AAB, CI, Play Console | Store listing, ảnh, privacy policy |
 | Tài liệu | Kiến trúc, sequence, state, ERD, API | Use case, đặc tả, UI/UX, test case, slide, video demo |
@@ -442,14 +442,14 @@ Quy trình: branch theo tính năng, PR nhỏ, người kia review trong ngày; 
 
 | Ngày | Mốc | P1 — Backend & Quán (đơn) | P2 — Khách & Design |
 |---|---|---|---|
-| **D1** 20/11 | Kick-off | **Đăng ký Lalamove sandbox, VNPay sandbox, Google Maps API Key, Play Console**; tạo Firebase, repo, CI | Design token, mockup 6 màn chính trên Stitch; chốt `core:model` cùng P1 |
+| **D1** 20/11 | Kick-off | **Đăng ký Lalamove sandbox, ZaloPay sandbox, OpenStreetMap, Play Console**; tạo Firebase, repo, CI | Design token, mockup 6 màn chính trên Stitch; chốt `core:model` cùng P1 |
 | **D2** 21/11 | Nền móng | Schema, Security Rules, custom claims, seed 2 quán | `core:designsystem`, Auth, role router, nav graph |
 | **D3** 22/11 | | `pricing.ts` + voucher + test vectors | Home, trang quán, bottom sheet tùy chỉnh |
-| **D4** 23/11 | | Lalamove quotation + MockProvider, `getDeliveryQuote` | Giỏ hàng Room + CartLineKey, địa chỉ + Google Maps API |
+| **D4** 23/11 | | Lalamove quotation + MockProvider, `getDeliveryQuote` | Giỏ hàng Room + CartLineKey, địa chỉ + OpenStreetMap |
 | **D5** 24/11 | **Demo #1**: đặt COD | `placeOrder` (idempotency, transaction voucher) | Checkout: báo giá ship, voucher, bảng tiền, COD |
 | **D6** 25/11 | | State machine, confirm/reject, FCM trigger; **Inbox + chuông** | Menu CRUD + option group (chế độ quán) |
-| **D7** 26/11 | | VNPay create / IPN / refund; chi tiết đơn + từ chối | Theo dõi đơn (timeline), xử lý push; voucher CRUD |
-| **D8** 27/11 | | Hoàn thiện VNPay refund; **màn bếp (KDS)** | Custom Tab + App Link return; màn kết quả thanh toán |
+| **D7** 26/11 | | ZaloPay create / Callback / refund; chi tiết đơn + từ chối | Theo dõi đơn (timeline), xử lý push; voucher CRUD |
+| **D8** 27/11 | | Hoàn thiện ZaloPay refund; **màn bếp (KDS)** | Custom Tab + App Link return; màn kết quả thanh toán |
 | **D9** 28/11 | **Demo #2**: end-to-end | Lalamove create order + webhook + driver detail; màn gọi shipper | Thẻ tài xế, lịch sử, đặt lại; trạng thái & lịch quán |
 | **D10** 29/11 | **Feature freeze** | Mock simulator, scheduler, rules hardening, cảnh báo trễ | Đánh giá + xem đánh giá; empty/error states |
 | **D11** 30/11 | Polish & release | AAB release, upload **Internal testing**, test máy thật | **Impeccable audit → polish**, store listing, bug bash |
@@ -485,7 +485,7 @@ Checklist: Play App Signing · AAB · targetSdk 36 · privacy policy trên Fireb
 - **DoD:** chạy trên máy thật · đủ trạng thái UI · logic domain có unit test · PR được review · SRS cập nhật nếu đổi nghiệp vụ.
 - **Unit:** PricingCalculator, VoucherValidator, CartLineKey, OrderStateMachine, effectiveStatus.
 - **Integration (Emulator):** 2 đơn đồng thời tranh 1 lượt voucher; webhook lặp 3 lần; IPN sai chữ ký.
-- **Kịch bản demo:** 2 tô "không hành"/"nhiều hành" + voucher 10% → thanh toán VNPay → quán reo chuông → xác nhận → bếp → gọi Lalamove → tài xế hiện → push từng bước → hoàn thành → đánh giá → đặt lại. Kịch bản phụ: đơn VNPay → quán từ chối "Hết chả cá" → hoàn tiền VNPay tự động.
+- **Kịch bản demo:** 2 tô "không hành"/"nhiều hành" + voucher 10% → thanh toán ZaloPay → quán reo chuông → xác nhận → bếp → gọi Lalamove → tài xế hiện → push từng bước → hoàn thành → đánh giá → đặt lại. Kịch bản phụ: đơn ZaloPay → quán từ chối "Hết chả cá" → hoàn tiền ZaloPay tự động.
 
 ---
 
@@ -502,7 +502,7 @@ Lưu ý: nên có 1 máy Android 13+ để test quyền thông báo `POST_NOTIFI
 ---
 
 ## ✅ Đã chốt
-- Tên: **MiaoSong (喵送)** · 1 app 2 chế độ · Modular monolith backend · Lalamove · COD + VNPay sandbox · 2 người · 2 điện thoại thật · có thẻ thanh toán.
+- Tên: **MiaoSong (喵送)** · 1 app 2 chế độ · Modular monolith backend · Lalamove · COD + ZaloPay sandbox · 2 người · 2 điện thoại thật · có thẻ thanh toán.
 
 ## ❓ Còn cần xác nhận
 1. Nhóm muốn mình **bắt tay vào dựng khung dự án ngay** (Gradle multi-module + Functions theo cấu trúc modular + design system + seed data) không?

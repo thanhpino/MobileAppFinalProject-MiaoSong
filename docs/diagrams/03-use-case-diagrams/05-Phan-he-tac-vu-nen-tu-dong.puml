@@ -1,0 +1,78 @@
+@startuml MiaoSong_TacVuNen
+title Phân hệ 4: Tác vụ Nền & Tự động hóa Đối tác (Background Jobs & Integration)
+left to right direction
+
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+skinparam roundcorner 10
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+skinparam actor {
+    BorderColor #8A57E8
+    BackgroundColor #F3EDF7
+    FontColor #212121
+    FontSize 12
+}
+
+skinparam usecase {
+    BorderColor #E65100
+    BackgroundColor #FFF8E1
+    FontColor #212121
+    FontSize 12
+    ArrowColor #37474F
+}
+
+skinparam rectangle {
+    BorderColor #9E9E9E
+    BackgroundColor #FAFAFA
+    FontColor #212121
+    FontSize 13
+}
+
+skinparam package {
+    BorderColor #BDBDBD
+    BackgroundColor #F5F5F5
+    FontColor #37474F
+    FontSize 12
+}
+
+skinparam arrow {
+    Color #37474F
+    FontColor #455A64
+    FontSize 11
+}
+
+
+actor "Cloud Scheduler\n<<Bộ lập lịch>>" as SCH <<Time>>
+actor "ZaloPay Sandbox\n<<Thanh toán>>" as ZLP <<System>>
+actor "Lalamove API\n<<Giao vận>>" as LL <<System>>
+actor "FCM\n<<Push Service>>" as FCM <<System>>
+
+actor "Khách hàng\n(CUSTOMER)" as KH
+actor "Quán ăn\n(MERCHANT)" as Q
+
+rectangle "Tác vụ Nền, Tự động hóa & Tích hợp Đối tác (Cloud Functions)" {
+    usecase "UC40: Đồng bộ tài xế qua Webhook" as UC40
+    usecase "UC41: Xác nhận thanh toán qua Callback" as UC41
+    usecase "UC42: Phát hiện & Cảnh báo đơn trễ (ETA + 15p)" as UC42
+    usecase "UC43: Tự động hủy đơn chưa thanh toán quá 15 phút" as UC43
+    usecase "UC44: Gửi Push Notification trạng thái" as UC44
+}
+
+SCH --> UC42 : <<Mỗi 5 phút quét đơn đang giao>>
+SCH --> UC43 : <<Mỗi 5 phút quét PENDING_PAYMENT>>
+
+ZLP --> UC41 : <<POST /payments/zalopay/callback>>
+LL --> UC40 : <<POST /webhooks/lalamove>>
+
+UC41 ..> UC44 : <<trigger push>>
+UC40 ..> UC44 : <<trigger push>>
+
+UC42 ..> Q : <<Cảnh báo badge đỏ trên đơn>>
+UC43 ..> KH : <<Push: Đơn quá hạn bị hủy & hoàn voucher>>
+
+UC44 --> FCM : <<Admin SDK gửi push>>
+FCM ..> KH : <<Push rung máy>>
+FCM ..> Q : <<Phát chuông đơn mới>>
+@enduml

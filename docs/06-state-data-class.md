@@ -1,12 +1,17 @@
 # 06 — State Machine, Data Model & Class Diagrams
 
-> Phụ trách: **Thành** · Review: **Phú**
+> **Dự án:** MiaoSong (喵送) — Nền tảng đặt món & điều phối giao hàng tự động (D2C F&B)  
+> **Người phụ trách:** Trương Minh Thành · Review: Huỳnh Trần Thiên Phú  
+> **Tài liệu liên quan:** [01-SRS.md](01-SRS.md) · [02-architecture.md](02-architecture.md) · [03-use-case-diagrams.md](03-use-case-diagrams.md) · [04-sequence-diagrams.md](04-sequence-diagrams.md) · [05-activity-diagrams.md](05-activity-diagrams.md)  
+> **Mã nguồn PlantUML:** [diagrams/06-state-data-class/class-diagrams.puml](diagrams/06-state-data-class/class-diagrams.puml)
+
+---
 
 ## 1. State machine đơn hàng
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PENDING_PAYMENT: đặt + VNPay
+    [*] --> PENDING_PAYMENT: đặt + ZaloPay
     [*] --> PLACED: đặt + COD
     PENDING_PAYMENT --> PLACED: thanh toán thành công
     PENDING_PAYMENT --> CANCELLED: quá 15 phút / khách hủy
@@ -34,15 +39,17 @@ stateDiagram-v2
 
 | Từ | Sang | Ai kích hoạt |
 |---|---|---|
-| PENDING_PAYMENT | PLACED / CANCELLED | payment / khách, scheduler |
-| PLACED | CONFIRMED / REJECTED / CANCELLED | quán / quán / khách |
-| CONFIRMED | READY / REJECTED | quán (chế độ Bếp) / quán |
-| READY | FINDING_DRIVER | quán |
-| FINDING_DRIVER | DRIVER_ASSIGNED / READY | Lalamove |
-| DRIVER_ASSIGNED | ARRIVED_AT_STORE / READY | Lalamove |
-| ARRIVED_AT_STORE | PICKED_UP | Lalamove |
-| PICKED_UP | DELIVERING | Lalamove |
-| DELIVERING | COMPLETED / DELIVERY_FAILED | Lalamove |
+| `PENDING_PAYMENT` | `PLACED` / `CANCELLED` | ZaloPay Callback / khách hủy, Cloud Scheduler (15p) |
+| `PLACED` | `CONFIRMED` / `REJECTED` / `CANCELLED` | quán / quán / khách |
+| `CONFIRMED` | `READY` / `REJECTED` | quán (chế độ Bếp) / quán (hết nguyên liệu) |
+| `READY` | `FINDING_DRIVER` | quán (bấm Gọi Shipper) |
+| `FINDING_DRIVER` | `DRIVER_ASSIGNED` / `READY` | Lalamove gán xe / tài xế hủy chuyến |
+| `DRIVER_ASSIGNED` | `ARRIVED_AT_STORE` / `READY` | Lalamove Webhook |
+| `ARRIVED_AT_STORE` | `PICKED_UP` | Lalamove Webhook |
+| `PICKED_UP` | `DELIVERING` | Lalamove Webhook |
+| `DELIVERING` | `COMPLETED` / `DELIVERY_FAILED` | Lalamove Webhook |
+
+---
 
 ## 2. State machine thanh toán & hoàn tiền
 
@@ -50,7 +57,7 @@ stateDiagram-v2
 stateDiagram-v2
     state "payment.status" as P {
         [*] --> UNPAID
-        UNPAID --> PAID: VNPay IPN OK
+        UNPAID --> PAID: ZaloPay Callback OK
         UNPAID --> FAILED: thanh toán lỗi
         FAILED --> UNPAID: thanh toán lại
         PAID --> [*]
@@ -58,11 +65,13 @@ stateDiagram-v2
     state "refundStatus" as R {
         [*] --> NONE
         NONE --> PENDING: đơn REJECTED/CANCELLED và đã PAID
-        PENDING --> REFUNDED
-        PENDING --> REFUND_FAILED
+        PENDING --> REFUNDED: ZaloPay Refund thành công
+        PENDING --> REFUND_FAILED: API Refund lỗi
         REFUND_FAILED --> PENDING: thử lại thủ công
     }
 ```
+
+---
 
 ## 3. State machine trạng thái quán
 
@@ -71,12 +80,14 @@ stateDiagram-v2
     [*] --> OPEN
     OPEN --> BUSY: chọn bận 15'/30'/1h/1 ngày
     BUSY --> OPEN: hết busyUntil / mở lại thủ công
-    OPEN --> CLOSED: đóng thủ công / ngoài lịch
+    OPEN --> CLOSED: đóng thủ công / ngoài lịch tuần
     BUSY --> CLOSED: đóng thủ công
-    CLOSED --> OPEN: mở thủ công / tới giờ lịch
+    CLOSED --> OPEN: mở thủ công / tới giờ mở theo lịch
 ```
 
-## 4. ERD (mô hình logic)
+---
+
+## 4. ERD (mô hình logic thực thể)
 
 ```mermaid
 erDiagram
@@ -93,13 +104,14 @@ erDiagram
     ORDER ||--|{ ORDER_ITEM : "gồm"
     ORDER ||--|| PAYMENT : "có"
     ORDER ||--o| DELIVERY : "có"
+    ORDER ||--o{ MESSAGE : "chứa tin nhắn"
     ORDER ||--o| REVIEW : "được đánh giá"
 
     USER {
         string uid PK
         string name
         string phone
-        string role
+        string role "CUSTOMER | MERCHANT"
         string storeId FK
     }
     ADDRESS {
@@ -113,10 +125,11 @@ erDiagram
         string id PK
         string name
         string slug
-        string manualStatus
+        string manualStatus "OPEN | BUSY | CLOSED"
         timestamp busyUntil
         int maxDistanceKm
         double ratingAvg
+        int ratingCount
     }
     CATEGORY {
         string id PK
@@ -133,7 +146,7 @@ erDiagram
     OPTION_GROUP {
         string id PK
         string name
-        string type
+        string type "SINGLE | MULTI"
         bool required
         int min
         int max
@@ -147,7 +160,7 @@ erDiagram
     VOUCHER {
         string id PK
         string code
-        string type
+        string type "PERCENT | FIXED"
         long value
         long maxDiscount
         long minOrder
@@ -164,7 +177,7 @@ erDiagram
     }
     ORDER {
         string id PK
-        string code
+        string code "MS-241120-0012"
         string status
         long subtotal
         long discount
@@ -183,14 +196,14 @@ erDiagram
         int quantity
     }
     PAYMENT {
-        string method
-        string status
+        string method "COD | ZALOPAY"
+        string status "UNPAID | PAID"
         long amountVnd
         string gatewayTxnId
-        string refundStatus
+        string refundStatus "NONE | PENDING | REFUNDED | FAILED"
     }
     DELIVERY {
-        string provider
+        string provider "LALAMOVE | MOCK"
         string quotationId
         string externalId
         string driverName
@@ -198,132 +211,270 @@ erDiagram
         string plate
         timestamp etaAt
     }
+    MESSAGE {
+        string id PK
+        string senderId FK
+        string senderRole "CUSTOMER | MERCHANT | DRIVER"
+        string text
+        timestamp createdAt
+    }
     REVIEW {
         string orderId PK
         int stars
         string comment
+        string tags
     }
 ```
 
+---
+
 ## 5. Ánh xạ Firestore (mô hình vật lý)
 
-| Path | Ghi bởi | Ghi chú |
+| Path Collection | Ghi bởi | Ghi chú & Ràng buộc bảo mật |
 |---|---|---|
-| `users/{uid}` | client (hồ sơ), CF (role) | |
-| `users/{uid}/addresses/{id}` | client | |
+| `users/{uid}` | client (hồ sơ), CF (role) | Client không được sửa role/storeId |
+| `users/{uid}/addresses/{id}` | client | Quản lý địa chỉ giao hàng |
 | `stores/{storeId}` | MERCHANT (Rules) | `weeklySchedule`, `specialDays` nhúng trong doc |
-| `stores/{storeId}/categories/{id}` | MERCHANT | |
-| `stores/{storeId}/menuItems/{id}` | MERCHANT | `optionGroups[]` **nhúng** (đọc 1 lần là đủ) |
-| `stores/{storeId}/vouchers/{id}` | MERCHANT, trừ `usedCount` (chỉ CF) | |
-| `voucherRedemptions/{voucherId_uid_orderId}` | CF | đếm perUserLimit |
-| `orders/{orderId}` | **chỉ CF** | `items[]`, `payment`, `delivery`, `statusHistory[]` nhúng |
-| `reviews/{orderId}` | chỉ CF | id = orderId → đảm bảo 1 đơn 1 đánh giá |
-| `processedEvents/{source_eventId}` | chỉ CF | idempotency |
-| `config/payment` | admin | `pendingPaymentTtlMin` |
+| `stores/{storeId}/categories/{id}` | MERCHANT | Nhóm danh mục món ăn |
+| `stores/{storeId}/menuItems/{id}` | MERCHANT | `optionGroups[]` nhúng trực tiếp trong document |
+| `stores/{storeId}/vouchers/{id}` | MERCHANT | `usedCount` chỉ do Cloud Functions tăng trong transaction |
+| `voucherRedemptions/{voucherId_uid_orderId}` | chỉ CF | Dùng kiểm soát `perUserLimit` |
+| `orders/{orderId}` | **chỉ CF** | Cấm client ghi trực tiếp. Toàn bộ items, payment, delivery snapshot |
+| `orders/{orderId}/messages/{msgId}` | CUSTOMER, MERCHANT | **Kênh nhắn tin in-app realtime (mới)** |
+| `reviews/{orderId}` | chỉ CF | `id = orderId` đảm bảo 1 đơn chỉ đánh giá 1 lần |
+| `processedEvents/{source_eventId}` | chỉ CF | Chống webhook/IPN gửi lặp (Idempotency) |
 
-**Index cần tạo:** `orders(storeId, status, createdAt desc)` · `orders(customerId, createdAt desc)` · `orders(status, createdAt)` cho scheduler.
+---
 
-## 6. Class diagram — Strategy cho Delivery & Payment (backend)
+## 6. Class Diagram — Backend Hexagonal Architecture (Module `orders`)
+
+Mô hình cấu trúc Ports & Adapters bên trong module `orders` — trung tâm điều phối toàn bộ vòng đời đơn hàng, cách ly hoàn toàn logic domain với Firebase SDK.
+
+```mermaid
+classDiagram
+    class PlaceOrderUseCase {
+        -orderRepo: OrderRepository
+        -catalogPort: CatalogPort
+        -pricingPort: PricingPort
+        -paymentPort: PaymentPort
+        -eventPublisher: EventPublisher
+        +execute(cmd: PlaceOrderCommand) OrderResult
+    }
+    class TransitionOrderUseCase {
+        -orderRepo: OrderRepository
+        -eventPublisher: EventPublisher
+        +execute(orderId: String, newStatus: OrderStatus) Result
+    }
+    class DispatchDriverUseCase {
+        -orderRepo: OrderRepository
+        -deliveryPort: DeliveryPort
+        +execute(orderId: String) DeliveryResult
+    }
+
+    class OrderRepository {
+        <<interface>>
+        +findById(id: String) Order
+        +save(order: Order) void
+        +saveInTransaction(order: Order, tx: Transaction) void
+    }
+    class CatalogPort {
+        <<interface>>
+        +isStoreOpen(storeId: String, at: Timestamp) Boolean
+        +resolveItems(itemIds: List) List~ItemSnapshot~
+    }
+    class PricingPort {
+        <<interface>>
+        +calculate(lines: List, voucherCode: String, shipFee: Long) PriceBreakdown
+        +reserveVoucher(storeId: String, code: String, userId: String) void
+    }
+    class DeliveryPort {
+        <<interface>>
+        +quote(pickup: LatLng, dropoff: LatLng) Quote
+        +createOrder(order: Order, quote: Quote) ExternalOrder
+    }
+    class PaymentPort {
+        <<interface>>
+        +createPayment(order: Order) PaymentInit
+        +refund(order: Order) RefundResult
+    }
+    class EventPublisher {
+        <<interface>>
+        +publish(event: DomainEvent) void
+    }
+
+    class FirestoreOrderRepository {
+        -db: Firestore
+        +findById(id: String) Order
+        +save(order: Order) void
+    }
+    class CatalogAdapter {
+        +isStoreOpen(storeId: String, at: Timestamp) Boolean
+    }
+    class PricingAdapter {
+        +calculate(...) PriceBreakdown
+    }
+    class InProcessEventBus {
+        +publish(event: DomainEvent) void
+    }
+
+    PlaceOrderUseCase --> OrderRepository
+    PlaceOrderUseCase --> CatalogPort
+    PlaceOrderUseCase --> PricingPort
+    PlaceOrderUseCase --> PaymentPort
+    PlaceOrderUseCase --> EventPublisher
+    TransitionOrderUseCase --> OrderRepository
+    TransitionOrderUseCase --> EventPublisher
+    DispatchDriverUseCase --> OrderRepository
+    DispatchDriverUseCase --> DeliveryPort
+
+    FirestoreOrderRepository ..|> OrderRepository
+    CatalogAdapter ..|> CatalogPort
+    PricingAdapter ..|> PricingPort
+    InProcessEventBus ..|> EventPublisher
+```
+
+---
+
+## 7. Class Diagram — Strategy Pattern cho Delivery & Payment (Backend)
+
+Cấu trúc mở rộng cho phép cắm/rút nhà cung cấp vận chuyển (Lalamove, Mock) và cổng thanh toán (COD, ZaloPay) mà không thay đổi luồng cốt lõi.
 
 ```mermaid
 classDiagram
     class DeliveryProvider {
         <<interface>>
-        +quote(pickup, dropoff) Quote
-        +createOrder(order, quote) ExternalOrder
-        +getDriver(externalId, driverId) Driver
-        +cancel(externalId) void
-        +parseWebhook(req) DeliveryEvent
+        +quote(pickup: LatLng, dropoff: LatLng) Quote
+        +createOrder(order: Order, quote: Quote) ExternalOrder
+        +getDriver(externalId: String, driverId: String) DriverDetail
+        +cancel(externalId: String) void
+        +parseWebhook(req: Request) DeliveryEvent
     }
     class LalamoveAdapter {
-        -apiKey
-        -secret
-        -sign(method, path, body) string
+        -apiKey: String
+        -secret: String
+        -sign(method: String, path: String, body: String) String
+        +quote(...) Quote
+        +createOrder(...) ExternalOrder
     }
-    class MockAdapter {
-        +advance(orderId) void
+    class MockDeliveryAdapter {
+        +quote(...) Quote
+        +createOrder(...) ExternalOrder
+        +advance(orderId: String, status: String) void
     }
     class DeliveryProviderFactory {
-        +of(type) DeliveryProvider
+        +getProvider(type: String) DeliveryProvider
     }
+
     DeliveryProvider <|.. LalamoveAdapter
-    DeliveryProvider <|.. MockAdapter
+    DeliveryProvider <|.. MockDeliveryAdapter
     DeliveryProviderFactory ..> DeliveryProvider
 
     class PaymentGateway {
         <<interface>>
-        +createPayment(order) PaymentInit
-        +confirm(payload) PaymentResult
-        +refund(payment) RefundResult
+        +createPayment(order: Order) PaymentInit
+        +confirm(payload: Any) PaymentResult
+        +refund(order: Order) RefundResult
     }
-    class CodGateway
-    class VnpayGateway {
-        -tmnCode
-        -hashSecret
-        -hmacSha512(data) string
+    class CodGateway {
+        +createPayment(order: Order) PaymentInit
+        +confirm(payload: Any) PaymentResult
+    }
+    class ZalopayGateway {
+        -appId: String
+        -key1: String
+        -key2: String
+        -hmacSha256(data: String, key: String) String
+        +createPayment(order: Order) PaymentInit
+        +confirm(payload: Any) PaymentResult
+        +refund(order: Order) RefundResult
     }
     class PaymentGatewayFactory {
-        +of(method) PaymentGateway
+        +getGateway(method: String) PaymentGateway
     }
+
     PaymentGateway <|.. CodGateway
-    PaymentGateway <|.. VnpayGateway
+    PaymentGateway <|.. ZalopayGateway
     PaymentGatewayFactory ..> PaymentGateway
 ```
 
-## 7. Class diagram — Domain (dùng chung ý tưởng cho Kotlin & TypeScript)
+---
+
+## 8. Class Diagram — Domain Model Dùng Chung (Kotlin & TypeScript)
+
+Các thực thể nghiệp vụ, Value Objects và thuật toán cốt lõi đảm bảo đồng nhất 100% giữa ứng dụng Android và Backend Functions.
 
 ```mermaid
 classDiagram
     class Money {
-        +Long vnd
-        +plus(Money) Money
-        +minus(Money) Money
-        +times(Int) Money
+        +amount: Long
+        +plus(other: Money) Money
+        +minus(other: Money) Money
+        +times(factor: Int) Money
+        +formatVnd() String
     }
+
+    class CartLineKey {
+        +value: String
+        +generate(itemId: String, sizeId: String, toppings: List, note: String)$ CartLineKey
+    }
+
     class CartLine {
-        +CartLineKey key
-        +String menuItemId
-        +SelectedOption size
-        +List~SelectedOption~ toppings
-        +String note
-        +Int quantity
-        +unitPrice() Money
+        +key: CartLineKey
+        +menuItemId: String
+        +sizeOptionId: String
+        +toppingOptionIds: List~String~
+        +note: String
+        +quantity: Int
+        +clientUnitPrice: Money
         +lineTotal() Money
     }
-    class CartLineKey {
-        +String value
-        +of(itemId, sizeId, toppingIds, note)$ CartLineKey
-    }
+
     class PricingCalculator {
-        +calculate(lines, voucher, shippingFee) PriceBreakdown
+        +calculate(lines: List~CartLine~, voucher: Voucher, shipFee: Long) PriceBreakdown
     }
+
     class PriceBreakdown {
-        +Money itemsTotal
-        +Money toppingsTotal
-        +Money subtotal
-        +Money discount
-        +Money shippingFee
-        +Money total
+        +itemsTotal: Money
+        +toppingsTotal: Money
+        +subtotal: Money
+        +discount: Money
+        +shippingFee: Money
+        +total: Money
     }
+
     class Voucher {
-        +VoucherType type
-        +Long value
-        +Long maxDiscount
-        +Long minOrder
-        +discountFor(subtotal) Money
+        +code: String
+        +type: VoucherType
+        +value: Long
+        +maxDiscount: Long
+        +minOrder: Long
+        +calculateDiscount(subtotal: Money) Money
     }
+
     class VoucherSpecification {
         <<interface>>
-        +isSatisfiedBy(ctx) Boolean
+        +isSatisfiedBy(orderContext: OrderContext) Boolean
     }
     class MinOrderSpec
     class DateRangeSpec
     class UsageLimitSpec
     class PerUserLimitSpec
-    class OrderStateMachine {
-        +canTransition(from, to) Boolean
-        +transition(order, to) Order
+
+    class ChatMessage {
+        +id: String
+        +orderId: String
+        +senderId: String
+        +senderRole: SenderRole
+        +text: String
+        +createdAt: Timestamp
+        +isFromCustomer() Boolean
     }
+
+    class OrderStateMachine {
+        +canTransition(current: OrderStatus, target: OrderStatus) Boolean
+        +validateTransition(current: OrderStatus, target: OrderStatus) void
+    }
+
     CartLine --> CartLineKey
     CartLine --> Money
     PricingCalculator ..> CartLine
@@ -335,38 +486,68 @@ classDiagram
     VoucherSpecification <|.. PerUserLimitSpec
 ```
 
-## 8. Class diagram — Android (một feature tiêu biểu: Cart)
+---
+
+## 9. Class Diagram — Android Clean Architecture: Feature Cart & Checkout
+
+Kiến trúc UDF (Unidirectional Data Flow) của tính năng Giỏ hàng và Checkout phía Khách hàng.
 
 ```mermaid
 classDiagram
     class CartScreen {
-        <<Composable>>
+        <<Composable UI>>
+        +CartContent(uiState: CartUiState, onEvent: (CartEvent) -> Unit)
     }
+
     class CartViewModel {
-        +StateFlow~CartUiState~ uiState
-        +onIncrease(key)
-        +onDecrease(key)
-        +onRemove(key)
-        +onCheckout()
+        -observeCartUseCase: ObserveCartUseCase
+        -updateQuantityUseCase: UpdateQuantityUseCase
+        -removeLineUseCase: RemoveLineUseCase
+        +uiState: StateFlow~CartUiState~
+        +onIncrease(key: CartLineKey)
+        +onDecrease(key: CartLineKey)
+        +onRemove(key: CartLineKey)
+        +onProceedToCheckout()
     }
+
     class CartUiState {
-        +List~CartLineUi~ lines
-        +PriceBreakdown price
-        +Boolean hasUnavailable
+        +lines: List~CartLineUiModel~
+        +pricing: PriceBreakdown
+        +isLoading: Boolean
+        +hasUnavailableItems: Boolean
     }
-    class ObserveCartUseCase
-    class UpdateQuantityUseCase
+
+    class ObserveCartUseCase {
+        -cartRepo: CartRepository
+        +invoke() Flow~List~CartLine~~
+    }
+    class UpdateQuantityUseCase {
+        -cartRepo: CartRepository
+        +invoke(key: CartLineKey, newQty: Int) void
+    }
+
     class CartRepository {
         <<interface>>
-        +observe() Flow~List~CartLine~~
-        +upsert(line)
-        +updateQuantity(key, qty)
-        +clear()
+        +observeCart() Flow~List~CartLine~~
+        +upsert(line: CartLine) void
+        +updateQuantity(key: CartLineKey, qty: Int) void
+        +clearCart() void
     }
-    class CartRepositoryImpl
+
+    class CartRepositoryImpl {
+        -cartDao: CartDao
+        +observeCart() Flow~List~CartLine~~
+        +upsert(line: CartLine) void
+    }
+
     class CartDao {
         <<Room DAO>>
+        +getCartLines() Flow~List~CartLineEntity~~
+        +insertOrUpdate(entity: CartLineEntity) void
+        +deleteByKey(key: String) void
+        +deleteAll() void
     }
+
     CartScreen --> CartViewModel
     CartViewModel --> CartUiState
     CartViewModel --> ObserveCartUseCase
@@ -377,3 +558,139 @@ classDiagram
     CartRepositoryImpl --> CartDao
 ```
 
+---
+
+## 10. Class Diagram — Android Clean Architecture: Feature Nhắn tin In-App Realtime
+
+Thiết kế phân lớp cho màn hình Chat, tích hợp lắng nghe thời gian thực qua Firestore SnapshotListener.
+
+```mermaid
+classDiagram
+    class ChatScreen {
+        <<Composable UI>>
+        +ChatContent(uiState: ChatUiState, onSend: (String) -> Unit)
+    }
+
+    class ChatViewModel {
+        -observeMessagesUseCase: ObserveMessagesUseCase
+        -sendMessageUseCase: SendMessageUseCase
+        +uiState: StateFlow~ChatUiState~
+        +onMessageInputChanged(text: String)
+        +onSendMessage()
+    }
+
+    class ChatUiState {
+        +orderId: String
+        +partnerName: String
+        +messages: List~ChatMessageUiModel~
+        +currentInput: String
+        +isSending: Boolean
+        +error: String?
+    }
+
+    class ObserveMessagesUseCase {
+        -chatRepo: ChatRepository
+        +invoke(orderId: String) Flow~List~ChatMessage~~
+    }
+
+    class SendMessageUseCase {
+        -chatRepo: ChatRepository
+        +invoke(orderId: String, text: String) Result~Unit~
+    }
+
+    class ChatRepository {
+        <<interface>>
+        +observeMessages(orderId: String) Flow~List~ChatMessage~~
+        +sendMessage(orderId: String, message: ChatMessage) Result~Unit~
+    }
+
+    class ChatRepositoryImpl {
+        -firestoreDataSource: FirestoreChatDataSource
+        +observeMessages(orderId: String) Flow~List~ChatMessage~~
+        +sendMessage(orderId: String, message: ChatMessage) Result~Unit~
+    }
+
+    class FirestoreChatDataSource {
+        -firestore: FirebaseFirestore
+        +listenMessages(orderId: String) Flow~List~ChatMessageDto~~
+        +addMessage(orderId: String, dto: ChatMessageDto) Task
+    }
+
+    ChatScreen --> ChatViewModel
+    ChatViewModel --> ChatUiState
+    ChatViewModel --> ObserveMessagesUseCase
+    ChatViewModel --> SendMessageUseCase
+    ObserveMessagesUseCase --> ChatRepository
+    SendMessageUseCase --> ChatRepository
+    ChatRepository <|.. ChatRepositoryImpl
+    ChatRepositoryImpl --> FirestoreChatDataSource
+```
+
+---
+
+## 11. Class Diagram — Android Clean Architecture: Feature Quán & Bếp (KDS)
+
+Mô hình phân lớp cho Màn hình Bếp (Kitchen Display System), hỗ trợ giữ sáng màn hình và lọc nổi bật món ăn có ghi chú dị ứng.
+
+```mermaid
+classDiagram
+    class KdsScreen {
+        <<Composable UI>>
+        +KdsContent(uiState: KdsUiState, onMarkReady: (String) -> Unit)
+    }
+
+    class KdsViewModel {
+        -observeKitchenOrdersUseCase: ObserveKitchenOrdersUseCase
+        -markReadyUseCase: MarkOrderReadyUseCase
+        +uiState: StateFlow~KdsUiState~
+        +onMarkOrderReady(orderId: String)
+    }
+
+    class KdsUiState {
+        +activeTickets: List~KitchenTicketUiModel~
+        +selectedFilter: TicketFilter
+        +isLoading: Boolean
+    }
+
+    class KitchenTicketUiModel {
+        +orderId: String
+        +orderCode: String
+        +elapsedMinutes: Int
+        +items: List~KitchenItemUiModel~
+        +hasAllergyAlert: Boolean
+        +specialNotes: String?
+    }
+
+    class ObserveKitchenOrdersUseCase {
+        -orderRepo: MerchantOrderRepository
+        +invoke(storeId: String) Flow~List~Order~~
+    }
+
+    class MarkOrderReadyUseCase {
+        -orderRepo: MerchantOrderRepository
+        +invoke(orderId: String) Result~Unit~
+    }
+
+    class MerchantOrderRepository {
+        <<interface>>
+        +observeConfirmedOrders(storeId: String) Flow~List~Order~~
+        +markReady(orderId: String) Result~Unit~
+        +dispatchShipper(orderId: String) Result~String~
+    }
+
+    class MerchantOrderRepositoryImpl {
+        -orderDataSource: FirestoreOrderDataSource
+        -functionsDataSource: CloudFunctionsOrderDataSource
+        +observeConfirmedOrders(storeId: String) Flow~List~Order~~
+        +markReady(orderId: String) Result~Unit~
+    }
+
+    KdsScreen --> KdsViewModel
+    KdsViewModel --> KdsUiState
+    KdsUiState --> KitchenTicketUiModel
+    KdsViewModel --> ObserveKitchenOrdersUseCase
+    KdsViewModel --> MarkOrderReadyUseCase
+    ObserveKitchenOrdersUseCase --> MerchantOrderRepository
+    MarkOrderReadyUseCase --> MerchantOrderRepository
+    MerchantOrderRepository <|.. MerchantOrderRepositoryImpl
+```
