@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "65086490343",
+    "project_id": "miaosong-pro",
+    "storage_bucket": "miaosong-pro.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:65086490343:android:0e73f77c7602a9d67fc442",
+        "android_client_info": {
+          "package_name": "vn.miaosong.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "65086490343-dmkovilc9cunatu8lni7b5s7kmdomnec.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAF6emXRQXYJv91sPFyUx3Bk8zy_URcrKk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "65086490343-dmkovilc9cunatu8lni7b5s7kmdomnec.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
