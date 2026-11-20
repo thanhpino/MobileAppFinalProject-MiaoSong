@@ -61,51 +61,67 @@ fun MiaoAnimatedCatLogo(
     modifier: Modifier = Modifier,
     size: Dp = 44.dp,
     showSquircleBackground: Boolean = true,
+    animated: Boolean = true,
 ) {
-    val transition = rememberInfiniteTransition(label = "miao_cat_wave")
+    val armRotation: Float
+    val armScale: Float
+    val waveGlowAlpha: Float
 
-    // @keyframes waveBackToFront (1.25s infinite)
-    val armRotation by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 0f,
-        animationSpec = infiniteRepeatable(
-            animation = keyframes {
-                durationMillis = 1250
-                0f at 0 using FastOutSlowInEasing
-                (-14f) at 375 using FastOutSlowInEasing
-                4f at 687 using FastOutSlowInEasing
-                (-12f) at 937 using FastOutSlowInEasing
-                0f at 1250
-            },
-        ),
-        label = "armRotation",
-    )
+    if (animated) {
+        val transition = rememberInfiniteTransition(label = "miao_cat_wave")
 
-    val armScale by transition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = keyframes {
-                durationMillis = 1250
-                1.0f at 0
-                1.06f at 375
-                0.96f at 687
-                1.04f at 937
-                1.0f at 1250
-            },
-        ),
-        label = "armScale",
-    )
+        // @keyframes waveBackToFront (1.25s infinite)
+        val rot by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 0f,
+            animationSpec = infiniteRepeatable(
+                animation = keyframes {
+                    durationMillis = 1250
+                    0f at 0 using FastOutSlowInEasing
+                    (-14f) at 375 using FastOutSlowInEasing
+                    4f at 687 using FastOutSlowInEasing
+                    (-12f) at 937 using FastOutSlowInEasing
+                    0f at 1250
+                },
+            ),
+            label = "armRotation",
+        )
 
-    val waveGlowAlpha by transition.animateFloat(
-        initialValue = 0.25f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(625, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "waveGlowAlpha",
-    )
+        val sc by transition.animateFloat(
+            initialValue = 1f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = keyframes {
+                    durationMillis = 1250
+                    1.0f at 0
+                    1.06f at 375
+                    0.96f at 687
+                    1.04f at 937
+                    1.0f at 1250
+                },
+            ),
+            label = "armScale",
+        )
+
+        val glow by transition.animateFloat(
+            initialValue = 0.25f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(625, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "waveGlowAlpha",
+        )
+
+        armRotation = rot
+        armScale = sc
+        waveGlowAlpha = glow
+    } else {
+        // Ảnh tĩnh (static) cho Header và Thẻ chào trên trang Home
+        armRotation = 0f
+        armScale = 1f
+        waveGlowAlpha = 0.85f
+    }
 
     Canvas(modifier = modifier.size(size)) {
         val scale = this.size.minDimension / 512f

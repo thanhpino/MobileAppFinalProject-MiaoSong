@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -247,17 +248,19 @@ private fun StitchTopHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            // Logo mèo thần tài vẫy tay + Brand Name
+            // Logo mèo thần tài tĩnh (static) + Brand Name
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.clickable { onTriggerLoadingPreview() },
             ) {
                 MiaoAnimatedCatLogo(
                     size = 42.dp,
+                    animated = false,
                     modifier = Modifier.clip(RoundedCornerShape(12.dp)),
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -363,6 +366,7 @@ private fun MiaoGreetingBanner(onClick: () -> Unit) {
             ) {
                 MiaoAnimatedCatLogo(
                     size = 36.dp,
+                    animated = false,
                     modifier = Modifier.clip(CircleShape),
                 )
                 Spacer(modifier = Modifier.width(10.dp))
