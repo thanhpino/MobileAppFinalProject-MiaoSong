@@ -1,0 +1,109 @@
+{
+  "description": "Shared test vectors for MiaoSong PricingCalculator, VoucherValidator, and CartLineKey across Android (Kotlin) and Backend (TypeScript).",
+  "cartLineKeyVectors": [
+    {
+      "id": "CLK-01",
+      "description": "2 tô bún riêu cùng size và topping nhưng khác ghi chú ('không hành' vs 'nhiều hành') phải sinh ra 2 key khác nhau",
+      "lineA": {
+        "menuItemId": "item_bun_rieu",
+        "sizeOptionId": "opt_size_large",
+        "toppingOptionIds": ["opt_top_cha", "opt_top_gio"],
+        "note": "Không hành"
+      },
+      "lineB": {
+        "menuItemId": "item_bun_rieu",
+        "sizeOptionId": "opt_size_large",
+        "toppingOptionIds": ["opt_top_gio", "opt_top_cha"],
+        "note": "nhiều hành"
+      },
+      "expectedRawA": "item_bun_rieu|opt_size_large|opt_top_cha,opt_top_gio|không hành",
+      "expectedRawB": "item_bun_rieu|opt_size_large|opt_top_cha,opt_top_gio|nhiều hành",
+      "expectEqual": false
+    },
+    {
+      "id": "CLK-02",
+      "description": "Thứ tự chọn topping khác nhau và khoảng trắng/chữ hoa trong ghi chú khác nhau nhưng cùng nội dung phải gộp thành 1 dòng",
+      "lineA": {
+        "menuItemId": "item_bun_rieu",
+        "sizeOptionId": "opt_size_regular",
+        "toppingOptionIds": ["opt_top_gio", "opt_top_cha"],
+        "note": "  KHÔNG   hành  "
+      },
+      "lineB": {
+        "menuItemId": "item_bun_rieu",
+        "sizeOptionId": "opt_size_regular",
+        "toppingOptionIds": ["opt_top_cha", "opt_top_gio"],
+        "note": "không hành"
+      },
+      "expectedRawA": "item_bun_rieu|opt_size_regular|opt_top_cha,opt_top_gio|không hành",
+      "expectedRawB": "item_bun_rieu|opt_size_regular|opt_top_cha,opt_top_gio|không hành",
+      "expectEqual": true
+    }
+  ],
+  "pricingVectors": [
+    {
+      "id": "PV-01",
+      "description": "Đơn chuẩn: 2 tô bún riêu lớn (45k + 10k) + thêm chả (8k) + 1 trà đá (5k), voucher 10% tối đa 20k, ship 18k",
+      "items": [
+        { "basePrice": 45000, "sizeDelta": 10000, "toppingsDelta": [8000], "quantity": 1 },
+        { "basePrice": 45000, "sizeDelta": 10000, "toppingsDelta": [8000], "quantity": 1 },
+        { "basePrice": 5000, "sizeDelta": 0, "toppingsDelta": [], "quantity": 1 }
+      ],
+      "voucher": { "type": "PERCENT", "value": 10, "maxDiscount": 20000, "minOrder": 100000 },
+      "shippingFee": 18000,
+      "expected": {
+        "itemsTotal": 115000,
+        "toppingsTotal": 16000,
+        "subtotal": 131000,
+        "discount": 13100,
+        "shippingFee": 18000,
+        "total": 135900
+      }
+    },
+    {
+      "id": "PV-02",
+      "description": "Voucher phần trăm chạm trần maxDiscount (subtotal 300k, giảm 10% nhưng trần 20k)",
+      "items": [
+        { "basePrice": 50000, "sizeDelta": 10000, "toppingsDelta": [], "quantity": 5 }
+      ],
+      "voucher": { "type": "PERCENT", "value": 10, "maxDiscount": 20000, "minOrder": 100000 },
+      "shippingFee": 22000,
+      "expected": {
+        "itemsTotal": 300000,
+        "toppingsTotal": 0,
+        "subtotal": 300000,
+        "discount": 20000,
+        "shippingFee": 22000,
+        "total": 302000
+      }
+    },
+    {
+      "id": "PV-03",
+      "description": "BR-PRICE-02: Voucher cố định (20k) lớn hơn tiền món (15k) KHÔNG ĐƯỢC trừ vào phí giao hàng (18k)",
+      "items": [
+        { "basePrice": 15000, "sizeDelta": 0, "toppingsDelta": [], "quantity": 1 }
+      ],
+      "voucher": { "type": "FIXED", "value": 20000, "maxDiscount": null, "minOrder": 0 },
+      "shippingFee": 18000,
+      "expected": {
+        "itemsTotal": 15000,
+        "toppingsTotal": 0,
+        "subtotal": 15000,
+        "discount": 15000,
+        "shippingFee": 18000,
+        "total": 18000
+      }
+    },
+    {
+      "id": "PV-04",
+      "description": "Không đủ đơn tối thiểu (subtotal 95k < minOrder 100k) -> từ chối áp voucher",
+      "items": [
+        { "basePrice": 45000, "sizeDelta": 0, "toppingsDelta": [2500], "quantity": 2 }
+      ],
+      "voucher": { "type": "FIXED", "value": 20000, "maxDiscount": null, "minOrder": 100000 },
+      "shippingFee": 15000,
+      "expectedError": "VOUCHER_MIN_ORDER",
+      "expectedShortfall": 5000
+    }
+  ]
+}
