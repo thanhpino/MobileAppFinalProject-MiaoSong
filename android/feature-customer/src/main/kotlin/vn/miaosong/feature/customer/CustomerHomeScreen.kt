@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -476,65 +477,81 @@ private fun SearchAndTrendingSection() {
     }
 }
 
+private data class CategoryTile(
+    val emoji: String,
+    val title: String,
+    val badge: String? = null,
+    val isTealBadge: Boolean = false,
+)
+
 @Composable
 private fun QuickCategoryGrid() {
     val row1 = listOf(
-        Triple("🍜", "Bún & Phở", "15-20p"),
-        Triple("🍛", "Cơm tấm", "Nóng hổi"),
-        Triple("🧋", "Trà sữa", "Mua 1 tặng 1"),
-        Triple("🥖", "Ăn vặt", "Siêu tốc"),
+        CategoryTile("🍜", "Bún & Phở", "15-20p", isTealBadge = false),
+        CategoryTile("🍛", "Cơm tấm", "Nóng hổi", isTealBadge = true),
+        CategoryTile("🧋", "Trà sữa", "Mua 1+1", isTealBadge = false),
+        CategoryTile("🥖", "Ăn vặt", "Siêu tốc", isTealBadge = true),
     )
     val row2 = listOf(
-        Triple("🍰", "Tráng miệng", null),
-        Triple("☕", "Cà phê", null),
-        Triple("⚡", "Giao nhanh", "Lấy ngay"),
-        Triple("🏷️", "Deal 50%", "-50%"),
+        CategoryTile("🍰", "Tráng miệng", null),
+        CategoryTile("☕", "Cà phê", null),
+        CategoryTile("⚡", "Giao nhanh", "Lấy ngay", isTealBadge = true),
+        CategoryTile("🏷️", "Deal 50%", "-50%", isTealBadge = false),
     )
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         listOf(row1, row2).forEach { rowItems ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                rowItems.forEach { (emoji, title, badge) ->
+                rowItems.forEach { item ->
+                    val accentColor = if (item.isTealBadge) MiaoColors.SecondaryTealBright else MiaoColors.BrandOrange
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.width(78.dp),
+                        modifier = Modifier.width(80.dp),
                     ) {
-                        Box {
+                        Box(
+                            modifier = Modifier.padding(top = 6.dp, end = 6.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
                             Surface(
                                 color = Color.White,
                                 shape = RoundedCornerShape(16.dp),
-                                border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.15f)),
+                                border = BorderStroke(1.dp, accentColor.copy(alpha = 0.18f)),
                                 shadowElevation = 1.dp,
-                                modifier = Modifier.size(50.dp),
+                                modifier = Modifier.size(52.dp),
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Text(text = emoji, fontSize = 24.sp)
+                                    Text(text = item.emoji, fontSize = 25.sp)
                                 }
                             }
-                            if (badge != null) {
+                            if (item.badge != null) {
                                 Surface(
-                                    color = MiaoColors.BrandOrange,
+                                    color = accentColor,
                                     shape = RoundedCornerShape(999.dp),
-                                    modifier = Modifier.align(Alignment.TopEnd),
+                                    shadowElevation = 2.dp,
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .offset(x = 8.dp, y = (-7).dp),
                                 ) {
                                     Text(
-                                        text = badge,
+                                        text = item.badge,
                                         color = Color.White,
-                                        fontSize = 8.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                        fontSize = 8.5.sp,
+                                        lineHeight = 10.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        maxLines = 1,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                     )
                                 }
                             }
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(5.dp))
                         Text(
-                            text = title,
+                            text = item.title,
                             color = MiaoColors.OnSurface,
-                            fontSize = 11.sp,
+                            fontSize = 11.5.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                         )
