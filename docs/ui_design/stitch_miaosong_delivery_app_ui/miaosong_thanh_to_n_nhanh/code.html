@@ -1,0 +1,377 @@
+<!DOCTYPE html><html class="h-full" lang="vi"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"><meta content="mobile_stack" name="shell-type"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"><link href="https://fonts.googleapis.com" rel="preconnect"><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script><script id="tailwind-config">tailwind.config = { 
+  darkMode: "class", 
+  theme: { 
+    extend: { 
+      colors: { 
+        surface: "#FFF8F0", 
+        background: "#FFF8F0", 
+        "on-background": "#3B2A20", 
+        "on-surface": "#3B2A20", 
+        "on-surface-variant": "#7C6A5D", 
+        primary: "#FF6A1A", 
+        "primary-container": "#FF6A1A", 
+        "on-primary": "#FFFFFF", 
+        "primary-fixed": "#FFE8DE", 
+        secondary: "#14B8A6", 
+        "secondary-container": "#E6FAF8", 
+        "on-secondary": "#FFFFFF", 
+        "on-secondary-container": "#0D7A6E", 
+        accent: "#FFC83D", 
+        "surface-container-lowest": "#FFFFFF", 
+        "surface-container-low": "#FAF3EB", 
+        "surface-container": "#F5ECE1", 
+        "surface-container-high": "#EFE4D7", 
+        "surface-container-highest": "#E7D8C8", 
+        outline: "#D9C9BC", 
+        "outline-variant": "#EFE4D7" 
+      }, 
+      borderRadius: { 
+        "DEFAULT": "0.75rem", 
+        "lg": "1.25rem", 
+        "xl": "1.5rem", 
+        "full": "9999px" 
+      }, 
+      spacing: { 
+        gutter: "0.75rem", 
+        "margin-mobile": "1rem", 
+        "space-sm": "0.5rem", 
+        "space-xl": "1.5rem", 
+        "space-lg": "1rem", 
+        "margin-tablet": "1.5rem", 
+        "space-xs": "0.25rem", 
+        "space-2xl": "2rem", 
+        "space-md": "0.75rem", 
+        margin: "1rem", 
+        "gutter-mobile": "0.75rem" 
+      }, 
+      fontFamily: { 
+        "label-lg": ["Plus Jakarta Sans"], 
+        "headline-md": ["Plus Jakarta Sans"], 
+        "data-timer": ["Plus Jakarta Sans"], 
+        "headline-sm": ["Plus Jakarta Sans"], 
+        "display": ["Plus Jakarta Sans"], 
+        "body-lg": ["Plus Jakarta Sans"], 
+        "body-md": ["Plus Jakarta Sans"], 
+        "label-md": ["Plus Jakarta Sans"], 
+        "label-sm": ["Plus Jakarta Sans"], 
+        "body-sm": ["Plus Jakarta Sans"], 
+        "headline-lg": ["Plus Jakarta Sans"] 
+      }, 
+      fontSize: { 
+        "label-lg": ["14px", { lineHeight: "18px", letterSpacing: "0.01em", fontWeight: "600" }], 
+        "headline-md": ["22px", { lineHeight: "28px", letterSpacing: "-0.01em", fontWeight: "700" }], 
+        "data-timer": ["24px", { lineHeight: "28px", letterSpacing: "-0.02em", fontWeight: "700" }], 
+        "headline-sm": ["18px", { lineHeight: "24px", letterSpacing: "0em", fontWeight: "700" }], 
+        "display": ["36px", { lineHeight: "44px", letterSpacing: "-0.03em", fontWeight: "700" }], 
+        "body-lg": ["16px", { lineHeight: "24px", letterSpacing: "-0.01em", fontWeight: "500" }], 
+        "body-md": ["14px", { lineHeight: "20px", letterSpacing: "0em", fontWeight: "400" }], 
+        "label-md": ["12px", { lineHeight: "16px", letterSpacing: "0.02em", fontWeight: "600" }], 
+        "label-sm": ["10px", { lineHeight: "14px", letterSpacing: "0.04em", fontWeight: "700" }], 
+        "body-sm": ["12px", { lineHeight: "16px", letterSpacing: "0em", fontWeight: "400" }], 
+        "headline-lg": ["28px", { lineHeight: "34px", letterSpacing: "-0.02em", fontWeight: "700" }] 
+      } 
+    } 
+  } 
+}</script><style>@layer base { html, body { width: 100%; margin: 0; padding: 0; } .pb-safe { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem); } .pt-safe { padding-top: env(safe-area-inset-top, 0px); } main > :first-child { margin-top: 0 !important; } main > :last-child { margin-bottom: 0 !important; } } ::-webkit-scrollbar { display: none; }</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head><body class="bg-surface font-body-md text-on-surface antialiased flex flex-col min-h-full"><header class="fixed top-0 w-full z-50 bg-[#FFF8F0]/90 backdrop-blur-xl border-b border-[#F0E4D8] pt-safe"><div class="h-16 px-margin-mobile flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-sm"><button aria-label="Quay lại" class="w-11 h-11 flex items-center justify-center rounded-full hover:bg-surface-container-low transition-colors text-on-surface" onclick="history.back()" type="button"><span class="material-symbols-outlined text-[22px]">arrow_back_ios_new</span></button><img alt="MiaoSong Lucky Cat Mascot" class="w-8 h-8 rounded-full object-cover shrink-0" src="https://lh3.googleusercontent.com/aida/ALJJyrCq45svJknNlUxxhIihECLesRGk2RFEQoM8NTeqQQbwFdr6oKwWVxsfm5xcZRAdZjTiHzG5UkPv59vuD_4RfPAyCrsgl8JusU37uCroZvlM0jG7uI2S5UFcRgkNaTYF36IU8rbiZg-F94CkmUUzgiZaEib9r_QGdfuMSnWwT-tJQCm9EyF5cW7uML39sWKqCoO7WdipgSj5AaiFh2ynIoVM8HLNDw4HAPMm4gHnJG0D"><h1 class="font-headline-sm text-headline-sm text-on-surface truncate">Xác Nhận Đơn Hàng</h1></div><div class="flex items-center gap-space-xs"><button aria-label="Tài khoản cá nhân" class="w-11 h-11 flex items-center justify-center rounded-full hover:opacity-90 transition-opacity" type="button"><img alt="Profile" class="w-8 h-8 rounded-full object-cover ring-2 ring-primary/20" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBLyDk2-ordoeMV5bQIrb7Z3QErEQomc7H_RpM8kNqy0vUMynkSD59xq_b9rlzh2pU_58o2t2jTbSGBQg5FNNMA34OJe0aDhNdjN3KDl2g0ZgeoHpo6rxJAj7Fv8d8ED2hbCy0CO6mhGB86PhJHhTofqsCN65JF-KwTDZ7tMMxzRAMFtCzqNG_3lqQbV9NKAO-aCtN8lH3kb59k1Gd7EmSF2JlS4dSAC9AmbWyPa9o"></button></div></div></header><main class="flex-1 flex flex-col relative w-full pt-16 pb-safe bg-surface"><div class="flex flex-col w-full pb-28 px-margin-mobile space-y-space-md">
+<!-- Delivery Address & Logistics Guarantee Bento Card -->
+<section class="bg-surface-container-lowest rounded-lg p-space-lg shadow-sm border border-[#F3E8DD] flex flex-col space-y-space-md relative overflow-hidden">
+<!-- Top Decorative Subtle Glow -->
+<div class="absolute -right-8 -top-8 w-28 h-28 bg-[#FF6A1A]/10 rounded-full blur-2xl pointer-events-none"></div>
+<!-- Location Header -->
+<div class="flex items-start justify-between gap-space-sm relative z-10">
+<div class="flex items-start gap-space-sm min-w-0">
+<div class="w-9 h-9 rounded-full bg-[#FFE8DE] flex items-center justify-center text-primary shrink-0 shadow-xs">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">location_on</span>
+</div>
+<div class="min-w-0">
+<div class="flex items-center gap-space-xs mb-0.5">
+<span class="bg-primary text-on-primary font-label-sm text-label-sm px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold">Giao Đến</span>
+<span class="bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm px-1.5 py-0.5 rounded-full font-bold">VĂN PHÒNG</span>
+</div>
+<h2 class="font-headline-sm text-headline-sm text-on-surface truncate">Tòa nhà Bitexco, 2 Hải Triều, P. Bến Nghé, Quận 1, TP. HCM</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">Nguyễn Văn An • 0908 123 456</p>
+</div>
+</div>
+<button aria-label="Thay đổi địa chỉ" class="w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors shrink-0" type="button">
+<span class="material-symbols-outlined text-[18px]">chevron_right</span>
+</button>
+</div>
+<!-- Dispatch Mode Selector Options -->
+<div class="grid grid-cols-1 gap-space-sm pt-space-xs">
+<!-- Option A: MiaoSong Lightning Speed (Active) -->
+<div class="cursor-pointer rounded-DEFAULT p-space-md bg-[#FFF5EF] border border-[#FFD8C7] shadow-xs transition-all duration-200 relative overflow-hidden" id="mode-lightning" onclick="selectMode('lightning')">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<span class="bg-primary text-on-primary font-label-sm text-label-sm px-2 py-0.5 rounded-full flex items-center gap-0.5 shadow-xs font-semibold">
+<span class="material-symbols-outlined text-[13px]" style="font-variation-settings: 'FILL' 1;">bolt</span>
+              Giao Cấp Tốc MiaoSong
+            </span>
+<span class="font-label-lg text-label-lg text-primary font-bold">(~15 phút)</span>
+</div>
+<div class="w-5 h-5 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-xs">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</div>
+</div>
+<div class="flex items-center justify-between mt-2 pt-1 border-t border-[#FFD8C7]/60">
+<p class="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[15px] text-secondary">sports_motorsports</span>
+            Tài xế riêng nhận đơn trực tiếp không ghép lộ trình
+          </p>
+<span class="font-data-timer text-label-md text-primary font-bold">15 PHÚT</span>
+</div>
+</div>
+<!-- Option B: Scheduled Delivery (Inactive) -->
+<div class="cursor-pointer rounded-DEFAULT p-space-md bg-surface-container-low border border-transparent hover:bg-surface-container transition-all duration-200" id="mode-scheduled" onclick="selectMode('scheduled')">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<span class="bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm px-2 py-0.5 rounded-full font-medium">Đặt Lịch</span>
+<span class="font-body-md text-body-md text-on-surface font-semibold">Hẹn giờ nhận hàng</span>
+</div>
+<div class="w-5 h-5 rounded-full bg-surface-container-high flex items-center justify-center" id="radio-scheduled"></div>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1.5 flex items-center gap-1">
+<span class="material-symbols-outlined text-[15px]">schedule</span>
+          Tùy chọn khung giờ linh hoạt trong ngày
+        </p>
+</div>
+</div>
+</section>
+<!-- Speed & Service Guarantee Banner -->
+<section class="bg-secondary-container/60 border border-[#BCEEE7] rounded-lg p-space-md flex items-center justify-between gap-space-sm shadow-xs"><div class="flex items-center gap-space-sm min-w-0"><img alt="MiaoSong Lucky Cat Mascot" class="w-11 h-11 rounded-full object-cover shrink-0 ring-2 ring-secondary/30 shadow-xs" src="https://lh3.googleusercontent.com/aida/ALJJyrCq45svJknNlUxxhIihECLesRGk2RFEQoM8NTeqQQbwFdr6oKwWVxsfm5xcZRAdZjTiHzG5UkPv59vuD_4RfPAyCrsgl8JusU37uCroZvlM0jG7uI2S5UFcRgkNaTYF36IU8rbiZg-F94CkmUUzgiZaEib9r_QGdfuMSnWwT-tJQCm9EyF5cW7uML39sWKqCoO7WdipgSj5AaiFh2ynIoVM8HLNDw4HAPMm4gHnJG0D"><div class="min-w-0"><div class="flex items-center gap-1.5 flex-wrap"><span class="font-label-sm text-label-sm text-[#0D7A6E] uppercase tracking-wider font-bold">Cam kết đúng giờ MiaoSong</span><span class="bg-primary text-on-primary font-label-sm text-label-sm px-1.5 py-0.2 rounded-full font-semibold">MiaoSong vẫy chào &amp; giao đúng hẹn!</span></div><p class="font-body-sm text-body-sm text-on-surface mt-0.5">Cam kết đúng giờ: Trễ quá 10 phút, tự động tặng voucher 30.000đ vào ví.</p></div></div><span class="material-symbols-outlined text-secondary text-[22px] shrink-0" style="font-variation-settings: 'FILL' 1;">verified_user</span></section>
+<!-- Order Items Breakdown Card -->
+<section class="bg-surface-container-lowest rounded-lg p-space-lg shadow-sm border border-[#F3E8DD] flex flex-col space-y-space-md">
+<!-- Merchant Title -->
+<div class="flex items-center justify-between pb-space-sm border-b border-[#FAF3EB]">
+<div class="flex items-center gap-space-xs">
+<div class="w-6 h-6 rounded-full bg-[#FFE8DE] flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[15px]">local_cafe</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Phúc Long Coffee &amp; Tea (Đồng Khởi)</h3>
+</div>
+<span class="bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm px-2 py-0.5 rounded-full font-medium">Cách 800m</span>
+</div>
+<!-- Product 1 -->
+<div class="flex items-center justify-between gap-space-md">
+<img class="w-16 h-16 rounded-DEFAULT object-cover shrink-0 shadow-xs" data-alt="A delicious chilled glass of Iced Velvet Raw Coconut Latte with clear ice cubes, creamy coffee foam layers, captured in commercial product photography with vibrant warm ambient morning cafe lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBKqswapBIo7vha2JpiC6x84FLe2ylXmP0A7TRR-OKiMQuOZeUMWXCAs_J52kdWu8SHT9tyJk0FLrp9H1n0aH-H0KkucPwcRjxGPUDVYwCGwJadskMUNNkuAR6Ldhw_uPHULZXajOAZy5MLPv1ygBsWJKqCe_UBUXJF2DWcZkz4PVTdF4Rvx3Rj0In5z7B8sXSVz4wvQTfTjSfu2_Ipptdx2qsgpdt3UcQQXzLxX_4">
+<div class="flex-1 min-w-0">
+<h4 class="font-body-lg text-body-lg text-on-surface font-semibold truncate">Trà Sữa Phúc Long</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate">Ít đá, 50% đường · Ly Tiêu Chuẩn</p>
+<span class="font-body-sm text-body-sm text-on-surface-variant">× 1</span>
+</div>
+<div class="text-right shrink-0">
+<span class="font-headline-sm text-headline-sm text-on-surface">45.000đ</span>
+</div>
+</div>
+<!-- Product 2 -->
+<div class="flex items-center justify-between gap-space-md">
+<img class="w-16 h-16 rounded-DEFAULT object-cover shrink-0 shadow-xs" data-alt="Golden crisp freshly baked French almond butter croissant with powdered sugar sprinkles and roasted sliced almonds on a clean minimal slate surface." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDedCjTprD6khxseo6GsfrQnaF4qBhamJ44QTDUBatSUhJoNr9FMXsVX8rPufCVndE-KFW0pujMHzdgcBetvO3wsRvzeV1WqdyGQwRcqJh2tDTjZPkvyUmTd12WMN77nPq9ziG0V5AlahKNyWbbiJ94G53cZrBGSfYEk4ds4ETZeBuio_0YKn-AfzRcyJn13vKzoiTm1RbGswJHvnloK6W_1mgfRegvgVjZh1ZhOiU">
+<div class="flex-1 min-w-0">
+<h4 class="font-body-lg text-body-lg text-on-surface font-semibold truncate">Bánh Croissant Hạnh Nhân</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate">Nướng nóng giòn · Bếp trưởng chọn</p>
+<span class="font-body-sm text-body-sm text-on-surface-variant">× 1</span>
+</div>
+<div class="text-right shrink-0">
+<span class="font-headline-sm text-headline-sm text-on-surface">35.000đ</span>
+</div>
+</div>
+<!-- Packaging Row -->
+<div class="flex items-center justify-between pt-space-xs text-on-surface-variant border-t border-[#FAF3EB]">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[16px] text-secondary">takeout_dining</span>
+<span class="font-body-sm text-body-sm text-on-surface">Túi giữ nhiệt bảo quản thực phẩm</span>
+<span class="bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm px-1.5 py-0.2 rounded">Bảo quản nhiệt</span>
+</div>
+<span class="font-body-md text-body-md text-on-surface font-medium">2.000đ</span>
+</div>
+</section>
+<!-- Payment & Discount Summary Card -->
+<section class="bg-surface-container-lowest rounded-lg p-space-lg shadow-sm border border-[#F3E8DD] flex flex-col space-y-space-sm">
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-1">Chi Tiết Thanh Toán</h3>
+<div class="flex items-center justify-between font-body-md text-body-md text-on-surface-variant">
+<span>Tiền món ăn</span>
+<span class="font-label-md text-label-md text-on-surface font-semibold">82.000đ</span>
+</div>
+<div class="flex items-center justify-between font-body-md text-body-md">
+<div class="flex items-center gap-space-xs">
+<span class="text-on-surface-variant">Phí giao hàng</span>
+<span class="bg-[#FFE8DE] text-primary font-label-sm text-label-sm px-1.5 py-0.5 rounded-full font-semibold">Mã Bạn Mới</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<span class="line-through text-outline font-label-sm text-label-sm">16.000đ</span>
+<span class="font-label-md text-label-md text-primary font-semibold">0đ</span>
+</div>
+</div>
+<div class="flex items-center justify-between font-body-md text-body-md">
+<div class="flex items-center gap-space-xs">
+<span class="text-on-surface-variant">Mã giảm giá quán</span>
+<span class="bg-secondary text-on-secondary font-label-sm text-label-sm px-1.5 py-0.5 rounded-full font-semibold">Tối ưu nhất</span>
+</div>
+<span class="font-label-md text-label-md text-primary font-semibold">-20.000đ</span>
+</div>
+<div class="flex items-center justify-between font-body-md text-body-md">
+<div class="flex items-center gap-space-xs">
+<span class="text-on-surface-variant">Điểm tích lũy Miao Xu (Dùng 200 xu)</span>
+<span class="material-symbols-outlined text-[16px] text-[#FFC83D]" style="font-variation-settings: 'FILL' 1;">stars</span>
+</div>
+<span class="font-label-md text-label-md text-primary font-semibold">-2.000đ</span>
+</div>
+<!-- Card Total Bar -->
+<div class="pt-space-sm mt-space-xs flex items-center justify-between bg-surface-container-low p-space-md rounded-DEFAULT border border-[#F0E4D8]">
+<div class="flex items-center gap-1.5">
+<span class="font-body-md text-body-md text-on-surface font-medium">Tổng giảm giá</span>
+<span class="bg-primary text-on-primary font-label-sm text-label-sm px-2 py-0.5 rounded-full font-semibold">Tiết kiệm 38.000đ!</span>
+</div>
+<div class="flex items-baseline gap-1">
+<span class="font-body-sm text-body-sm text-on-surface-variant">Tổng thanh toán:</span>
+<span class="font-headline-md text-headline-md text-primary font-bold">60.000đ</span>
+</div>
+</div>
+</section>
+<!-- Payment Method Selector -->
+<section class="bg-surface-container-lowest rounded-lg p-space-lg shadow-sm border border-[#F3E8DD] flex flex-col space-y-space-md">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Phương Thức Thanh Toán</h3>
+<div class="space-y-space-sm">
+<!-- MoMo (Selected - Ưu tiên) -->
+<label class="flex items-center justify-between p-space-md rounded-DEFAULT bg-[#F3FAF8] border border-[#BCEEE7] cursor-pointer transition-colors" onclick="selectPayment('momo')">
+<div class="flex items-center gap-space-md">
+<div class="w-9 h-9 rounded-full bg-secondary/15 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[20px]">account_balance_wallet</span>
+</div>
+<div>
+<div class="flex items-center gap-1.5">
+<p class="font-body-lg text-body-lg text-on-surface font-semibold">Ví MoMo</p>
+<span class="bg-secondary text-on-secondary font-label-sm text-label-sm px-1.5 py-0.2 rounded-full font-semibold">Ưu tiên</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Thanh toán 1 chạm, hoàn xu</p>
+</div>
+</div>
+<div class="w-6 h-6 rounded-full bg-secondary flex items-center justify-center text-on-secondary shadow-xs" id="pay-check-momo">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+</label>
+<!-- ShopeePay / ZaloPay -->
+<label class="flex items-center justify-between p-space-md rounded-DEFAULT hover:bg-surface-container-low border border-transparent cursor-pointer transition-colors" onclick="selectPayment('wallet')">
+<div class="flex items-center gap-space-md">
+<div class="w-9 h-9 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface">
+<span class="material-symbols-outlined text-[20px]">payments</span>
+</div>
+<div>
+<p class="font-body-lg text-body-lg text-on-surface font-semibold">Ví ShopeePay / ZaloPay</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Ưu đãi voucher đến 15k</p>
+</div>
+</div>
+<div class="w-6 h-6 rounded-full bg-surface-container-high flex items-center justify-center" id="pay-check-wallet"></div>
+</label>
+<!-- COD -->
+<label class="flex items-center justify-between p-space-md rounded-DEFAULT hover:bg-surface-container-low border border-transparent cursor-pointer transition-colors" onclick="selectPayment('cod')">
+<div class="flex items-center gap-space-md">
+<div class="w-9 h-9 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface">
+<span class="material-symbols-outlined text-[20px]">local_atm</span>
+</div>
+<div>
+<p class="font-body-lg text-body-lg text-on-surface font-semibold">Tiền mặt khi nhận hàng (COD)</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Thanh toán trực tiếp cho tài xế</p>
+</div>
+</div>
+<div class="w-6 h-6 rounded-full bg-surface-container-high flex items-center justify-center" id="pay-check-cod"></div>
+</label>
+<!-- ATM / Card -->
+<label class="flex items-center justify-between p-space-md rounded-DEFAULT hover:bg-surface-container-low border border-transparent cursor-pointer transition-colors" onclick="selectPayment('card')">
+<div class="flex items-center gap-space-md">
+<div class="w-9 h-9 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface">
+<span class="material-symbols-outlined text-[20px]">credit_card</span>
+</div>
+<div>
+<p class="font-body-lg text-body-lg text-on-surface font-semibold">Thẻ ATM / Thẻ quốc tế Visa/Mastercard</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Bảo mật giao dịch trực tuyến</p>
+</div>
+</div>
+<div class="w-6 h-6 rounded-full bg-surface-container-high flex items-center justify-center" id="pay-check-card"></div>
+</label>
+</div>
+</section>
+<!-- Interactive Slide-to-Pay Hint Note -->
+<div class="text-center px-space-md">
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+      Bằng việc nhấn đặt đơn, bạn đồng ý với Điều khoản dịch vụ và Chính sách giao vận của MiaoSong.
+    </p>
+</div>
+<!-- Fixed Bottom Sticky Tray -->
+<aside class="fixed bottom-0 left-0 right-0 z-40 bg-[#FFF8F0]/95 backdrop-blur-xl border-t border-[#F0E4D8] px-margin-mobile pt-space-md pb-safe shadow-[0_-4px_20px_rgba(59,42,32,0.06)]">
+<div class="max-w-md mx-auto flex items-center justify-between gap-space-md">
+<!-- Price and Saved Tag -->
+<div class="flex flex-col min-w-0">
+<div class="flex items-baseline gap-1">
+<span class="font-body-sm text-body-sm text-on-surface-variant">Tổng cộng:</span>
+<span class="font-headline-lg text-headline-lg text-primary tracking-tight font-bold">60.000đ</span>
+</div>
+<div class="flex items-center gap-1 -mt-0.5">
+<span class="bg-[#FFE8DE] text-primary font-label-sm text-label-sm px-1.5 py-0.2 rounded-full font-semibold">Tiết kiệm 38.000đ</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant line-through">98.000đ</span>
+</div>
+</div>
+<!-- Action Button CTA -->
+<button class="flex-1 h-[52px] bg-primary text-on-primary rounded-full px-space-lg flex items-center justify-center gap-space-xs font-label-lg text-label-lg shadow-md hover:bg-[#E55B10] active:scale-[0.98] transition-all duration-150" id="pay-button" onclick="handlePayAction()" type="button">
+<span class="material-symbols-outlined text-[20px] animate-pulse" style="font-variation-settings: 'FILL' 1;">bolt</span>
+<span id="pay-button-label">⚡ Đặt Đơn &amp; Giao Ngay</span>
+</button>
+</div>
+</aside>
+</div>
+<script>
+  // Simple reactive state controllers for UX feedback
+  function selectMode(type) {
+    const lightEl = document.getElementById('mode-lightning');
+    const schedEl = document.getElementById('mode-scheduled');
+    const schedRadio = document.getElementById('radio-scheduled');
+    
+    if (type === 'lightning') {
+      lightEl.className = 'cursor-pointer rounded-DEFAULT p-space-md bg-[#FFF5EF] border border-[#FFD8C7] shadow-xs transition-all duration-200 relative overflow-hidden';
+      schedEl.className = 'cursor-pointer rounded-DEFAULT p-space-md bg-surface-container-low border border-transparent hover:bg-surface-container transition-all duration-200';
+      schedRadio.innerHTML = '';
+      schedRadio.className = 'w-5 h-5 rounded-full bg-surface-container-high flex items-center justify-center';
+    } else {
+      schedEl.className = 'cursor-pointer rounded-DEFAULT p-space-md bg-[#FFF5EF] border border-[#FFD8C7] shadow-xs transition-all duration-200 relative overflow-hidden';
+      lightEl.className = 'cursor-pointer rounded-DEFAULT p-space-md bg-surface-container-low border border-transparent hover:bg-surface-container transition-all duration-200';
+      schedRadio.className = 'w-5 h-5 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-xs';
+      schedRadio.innerHTML = '<span class="material-symbols-outlined text-[14px]">check</span>';
+    }
+  }
+
+  function selectPayment(method) {
+    const methods = ['momo', 'wallet', 'cod', 'card'];
+    methods.forEach(m => {
+      const checkEl = document.getElementById('pay-check-' + m);
+      if (!checkEl) return;
+      if (m === method) {
+        checkEl.className = 'w-6 h-6 rounded-full bg-secondary flex items-center justify-center text-on-secondary shadow-xs';
+        checkEl.innerHTML = '<span class="material-symbols-outlined text-[16px]">check</span>';
+      } else {
+        checkEl.className = 'w-6 h-6 rounded-full bg-surface-container-high flex items-center justify-center';
+        checkEl.innerHTML = '';
+      }
+    });
+  }
+
+  function handlePayAction() {
+    const btn = document.getElementById('pay-button');
+    const label = document.getElementById('pay-button-label');
+    btn.disabled = true;
+    btn.classList.add('opacity-80');
+    label.innerText = 'Đang xử lý đơn hàng...';
+    setTimeout(() => {
+      label.innerText = 'Đặt hàng thành công! Đang điều phối tài xế...';
+      btn.classList.remove('bg-primary');
+      btn.classList.add('bg-secondary');
+    }, 1000);
+  }
+</script></main>
+
+
+</body></html>

@@ -1,0 +1,42 @@
+name: MiaoSong CI
+
+on:
+  push:
+    branches: [main, dev, thanhpino, thienphu]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  backend-check:
+    name: Backend (TypeScript + Modular Monolith R1-R4 + Vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/functions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/functions/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: npm test
+
+  android-domain-test:
+    name: Android Domain & Shared Test Vectors
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - name: Run SharedPricingVectorsTest (:core:domain:test)
+        run: ./gradlew :core:domain:test --no-daemon

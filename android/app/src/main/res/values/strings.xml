@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MiaoSong</string>
+    <style name="Theme.MiaoSong" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#140E0A</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+</resources>
