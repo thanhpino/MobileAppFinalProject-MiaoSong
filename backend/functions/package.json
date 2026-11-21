@@ -1,0 +1,29 @@
+{
+  "name": "miaosong-functions",
+  "version": "1.0.0",
+  "description": "MiaoSong D2C F&B Platform — Modular Monolith Backend on Firebase Cloud Functions v2",
+  "main": "lib/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "lint": "tsc --noEmit && npm run arch:check",
+    "arch:check": "depcruise src --config .dependency-cruiser.cjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "seed:emulator": "tsx scripts/seed.ts"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.1",
+    "firebase-functions": "^6.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "dependency-cruiser": "^16.8.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

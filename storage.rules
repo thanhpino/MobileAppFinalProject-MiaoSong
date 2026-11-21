@@ -1,0 +1,28 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isMerchantOfStore(storeId) {
+      return isSignedIn()
+        && request.auth.token.role == 'MERCHANT'
+        && request.auth.token.storeId == storeId;
+    }
+
+    // Ảnh món ăn & ảnh bìa quán: đọc công khai, chỉ đúng quán được upload (<= 2MB, định dạng ảnh)
+    match /stores/{storeId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isMerchantOfStore(storeId)
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // Chặn mặc định các đường dẫn khác
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
