@@ -26,6 +26,7 @@ export interface Store {
   name: string;
   slug: string;
   address: string;
+  avatarUrl?: string;
   lat: number;
   lng: number;
   phone: string;

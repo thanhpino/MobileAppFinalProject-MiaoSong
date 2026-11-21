@@ -24,6 +24,21 @@ import vn.miaosong.core.model.VoucherType
 import javax.inject.Inject
 import javax.inject.Singleton
 
+private const val AVATAR_BUN_RIEU_CO_BA =
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuDLEGTUDj1U_Yg11MfTv01vY_3AF_TF1ilrOTa0QYJDXkEjB2s9pLTEReU_XCfyVoTyXJo0-kGTiFUK-NolEEMFXJUUkBnNP63g97dPZEVofOtqWwywcKNYST6_QkTJ9nZoAxUuCD7YrBZLfgU4NZVVeXQnRpx6EdyIbVSI4sxXHPTmWpJlM_5zc3rC4k10r3U8w22Gw-jC7ahY7tLQ_DZMT3xl8an6mM7CBAleZ5Q"
+
+private const val AVATAR_BUN_CHA_CA =
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuCwcq0m3nINlmuB2KG0iqONcr9xO1cdiAGHK9vo-O-DQWz1pnjK0Nu1_RIQwaVrBh9N7xhlx-o16KMQ8IozPwPuN1tkWXvtlbDfpGAv3bN_sKGDLCzEG_TUd7lWBGFli6mMqC0ETSO8HPa_A2NHYPdjq_bQy7kT7x38PQ-g6z1OWiJFIg-jOuYMnR76klNR4TsQEmpDN5U8D2UmfWcqbB_gh9OgivjXWr7YoJeu7eM"
+
+private const val AVATAR_COM_TAM =
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuCEBiL4AIGbHXLkxb8FuNt105Uiyo-yCjJyl_aYulwSvznF-WMFeATEfdS1BewJT_79vsXkamcjtjFm0k2Ol7x6fXhfkgnIMzflDM0dKyATESjoncv2YYyc6QC450rFQNkm9JKJzwazUcVsWTEHq1RVcnD1rtqGRfjBs0UXwuYbWp3dXtgtmUXqeiq0UyytMCp0FtcG-zAIFAi7WD6KIQWPjosxlrPeicLA4CUY3wU"
+
+private const val AVATAR_DRINKS =
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuCSgFyvurAxNBhD3FUkp4d0APxADrWGjNc9X_5_AOXQjP4TwbH_wdpsFm6aVPUBhWoLH_fdK8ceBr-87CWNz5uBcTTq38rA02dXH962HqoGod8HHChH1Q4DycVg82qLHCpeKc1Y_jq7X-OJFCTzK7rJrQtImY9ZbDijQ5HhQIosKRSFocPs4hKiUka1dvlVvz35YVbwUFx9EN3FYhhySWx9iXe-GbmLhRnRzd-P1iE"
+
+private const val AVATAR_PHO_BO =
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuBBVh_q7NEC4Dm6gzcSsG3DmZX0eOm-fgSIC4fA1_nj6SMhyv621X-N2CTGYkfYoLFKxTe8yr0L6BJT8Xmkd40lu00vCD-bOz7Qjk5s7jH5TVOikXs9Eu6PhGVnsFY_xBY1r8n2_cz7hIaPUXnFSir28sX50aWOlizhfdSiY_T9YYKO-xBcKKNqOR05OJMAPPrQevEJaLXqsuG5wc4v7VWjS_mEhROqPQqfR_q211A"
+
 @Singleton
 class StoreRepositoryImpl @Inject constructor(
     private val firestore: FirebaseFirestore,
@@ -49,7 +64,8 @@ class StoreRepositoryImpl @Inject constructor(
                     trySend(null)
                     return@addSnapshotListener
                 }
-                trySend(snap?.takeIf { it.exists() }?.toStore())
+                val store = snap?.takeIf { it.exists() }?.toStore() ?: getFallbackStore(storeId)
+                trySend(store)
             }
         awaitClose { reg.remove() }
     }
@@ -161,12 +177,18 @@ class StoreRepositoryImpl @Inject constructor(
             )
         }
 
+        val slug = getString("slug").orEmpty()
+        val rawAvatar = getString("avatarUrl").orEmpty()
+        val avatarUrl = rawAvatar.ifBlank {
+            resolveStoreAvatar(name = name, slug = slug)
+        }
+
         return Store(
             id = id,
             name = name,
-            slug = getString("slug").orEmpty(),
+            slug = slug,
             address = getString("address").orEmpty(),
-            avatarUrl = getString("avatarUrl").orEmpty(),
+            avatarUrl = avatarUrl,
             lat = getDouble("lat") ?: 0.0,
             lng = getDouble("lng") ?: 0.0,
             phone = getString("phone").orEmpty(),
@@ -181,6 +203,90 @@ class StoreRepositoryImpl @Inject constructor(
             ratingAvg = getDouble("ratingAvg") ?: 0.0,
             ratingCount = (getLong("ratingCount") ?: 0L).toInt(),
         )
+    }
+
+    private fun resolveStoreAvatar(name: String, slug: String): String {
+        val lower = (name + " " + slug).lowercase()
+        return when {
+            lower.contains("cha-ca") || lower.contains("chả cá") || lower.contains("ca vien") ->
+                AVATAR_BUN_CHA_CA
+            lower.contains("com") || lower.contains("cơm") || lower.contains("suon") || lower.contains("sườn") ->
+                AVATAR_COM_TAM
+            lower.contains("tra") || lower.contains("trà") || lower.contains("ca-phe") || lower.contains("cà phê") || lower.contains("coffee") || lower.contains("tea") || lower.contains("sua") || lower.contains("sữa") ->
+                AVATAR_DRINKS
+            lower.contains("pho") || lower.contains("phở") || lower.contains("bo") || lower.contains("bò") ->
+                AVATAR_PHO_BO
+            lower.contains("rieu") || lower.contains("riêu") || lower.contains("co ba") || lower.contains("cô ba") ->
+                AVATAR_BUN_RIEU_CO_BA
+            else ->
+                AVATAR_BUN_RIEU_CO_BA
+        }
+    }
+
+    private fun getFallbackStore(storeId: String): Store? {
+        return when (storeId) {
+            "store_bun_cha_ca_nt" -> Store(
+                id = "store_bun_cha_ca_nt",
+                name = "Bún Chả Cá Nha Trang",
+                slug = "bun-cha-ca-nha-trang",
+                address = "112 Lê Văn Lương, Tân Kiểng, Quận 7, TP.HCM",
+                avatarUrl = AVATAR_BUN_CHA_CA,
+                lat = 10.7421,
+                lng = 106.7042,
+                phone = "+84909333444",
+                maxDistanceKm = 10.0,
+                deliveryProvider = DeliveryProviderType.LALAMOVE,
+                schedule = StoreSchedule(manualStatus = ManualStoreStatus.OPEN),
+                ratingAvg = 4.8,
+                ratingCount = 86,
+            )
+            "store_com_tam_ba_ghien" -> Store(
+                id = "store_com_tam_ba_ghien",
+                name = "Cơm Tấm Ba Ghiền — Sườn Bì Chả",
+                slug = "com-tam-ba-ghien",
+                address = "84 Đặng Văn Ngữ, Phường 10, Phú Nhuận, TP.HCM",
+                avatarUrl = AVATAR_COM_TAM,
+                lat = 10.7932,
+                lng = 106.6715,
+                phone = "+84908555666",
+                maxDistanceKm = 12.0,
+                deliveryProvider = DeliveryProviderType.MOCK,
+                schedule = StoreSchedule(manualStatus = ManualStoreStatus.OPEN),
+                ratingAvg = 4.9,
+                ratingCount = 340,
+            )
+            "store_tra_sua_miaotea" -> Store(
+                id = "store_tra_sua_miaotea",
+                name = "Trà Sữa & Cà Phê MiaoTea",
+                slug = "tra-sua-miaotea",
+                address = "65 Đường D1, Tân Hưng, Quận 7, TP.HCM",
+                avatarUrl = AVATAR_DRINKS,
+                lat = 10.7485,
+                lng = 106.6980,
+                phone = "+84909777888",
+                maxDistanceKm = 8.0,
+                deliveryProvider = DeliveryProviderType.MOCK,
+                schedule = StoreSchedule(manualStatus = ManualStoreStatus.OPEN),
+                ratingAvg = 4.7,
+                ratingCount = 195,
+            )
+            "store_bun_rieu_co_ba" -> Store(
+                id = "store_bun_rieu_co_ba",
+                name = "Bún Riêu Cô Ba",
+                slug = "bun-rieu-co-ba",
+                address = "420 Nguyễn Thị Thập, Tân Quy, Quận 7, TP.HCM",
+                avatarUrl = AVATAR_BUN_RIEU_CO_BA,
+                lat = 10.7385,
+                lng = 106.7124,
+                phone = "+84909111222",
+                maxDistanceKm = 10.0,
+                deliveryProvider = DeliveryProviderType.MOCK,
+                schedule = StoreSchedule(manualStatus = ManualStoreStatus.OPEN),
+                ratingAvg = 4.9,
+                ratingCount = 128,
+            )
+            else -> null
+        }
     }
 
     @Suppress("UNCHECKED_CAST")

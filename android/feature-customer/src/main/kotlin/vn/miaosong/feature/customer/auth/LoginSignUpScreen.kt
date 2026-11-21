@@ -77,6 +77,7 @@ import vn.miaosong.core.designsystem.components.MiaoAnimatedCatLogo
 import vn.miaosong.core.designsystem.components.MiaoCulinaryDivider
 import vn.miaosong.core.designsystem.components.MiaoPrimaryButton
 import vn.miaosong.core.designsystem.components.MiaoSegmentedSwitcher
+import vn.miaosong.core.designsystem.components.MiaoSnackbarHost
 import vn.miaosong.core.designsystem.components.MiaoTextField
 import vn.miaosong.core.designsystem.theme.MiaoColors
 import vn.miaosong.core.designsystem.theme.MiaoSongTheme
@@ -100,8 +101,9 @@ fun LoginSignUpScreen(
     }
 
     LaunchedEffect(uiState.successMessage) {
-        uiState.successMessage?.let {
-            snackbarHostState.showSnackbar(it)
+        uiState.successMessage?.let { msg ->
+            snackbarHostState.showSnackbar(msg)
+            viewModel.dismissSuccessMessage()
         }
     }
 
@@ -146,7 +148,7 @@ fun LoginSignUpContent(
 ) {
     Scaffold(
         containerColor = MiaoColors.SurfaceCanvas,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { MiaoSnackbarHost(snackbarHostState) },
         modifier = modifier.fillMaxSize(),
     ) { innerPadding ->
         Column(
