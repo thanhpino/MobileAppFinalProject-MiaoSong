@@ -24,6 +24,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -33,6 +37,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -150,6 +156,86 @@ fun KitchenNoteBadge(
                     color = textColor,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Thông báo nổi (Toast Card) hiện đại chuẩn Warm Savory Delivery thay thế Snackbar đen mặc định.
+ * Tự nhận diện trạng thái Thành công (xanh Teal), Lỗi (đỏ) hoặc Đơn mới (cam).
+ */
+@Composable
+fun MiaoSnackbarHost(
+    hostState: SnackbarHostState,
+    modifier: Modifier = Modifier,
+) {
+    SnackbarHost(
+        hostState = hostState,
+        modifier = modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+    ) { data ->
+        val msg = data.visuals.message
+        val lower = msg.lowercase()
+        val isError = lower.contains("thất bại") ||
+            lower.contains("lỗi") ||
+            lower.contains("permission") ||
+            lower.contains("incorrect") ||
+            lower.contains("failed") ||
+            lower.contains("không thể")
+        val isBell = msg.contains("🔔") || lower.contains("đơn hàng mới")
+
+        val accent = when {
+            isError -> Color(0xFFD92D20)
+            isBell -> MiaoColors.BrandOrange
+            else -> MiaoColors.SecondaryTeal
+        }
+        val iconBg = when {
+            isError -> Color(0xFFFFF1F0)
+            isBell -> Color(0xFFFFF1EA)
+            else -> Color(0xFFE6FAF8)
+        }
+        val icon = when {
+            isError -> Icons.Default.ErrorOutline
+            isBell -> Icons.Default.NotificationsActive
+            else -> Icons.Default.CheckCircle
+        }
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = Color.White,
+            shape = RoundedCornerShape(18.dp),
+            shadowElevation = 8.dp,
+            border = BorderStroke(1.dp, accent.copy(alpha = 0.25f)),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Surface(
+                    color = iconBg,
+                    shape = CircleShape,
+                    modifier = Modifier.size(34.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = accent,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+                Text(
+                    text = msg.replace("🔔 ", ""),
+                    color = MiaoColors.OnSurface,
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    lineHeight = 19.sp,
+                    modifier = Modifier.weight(1f),
                 )
             }
         }

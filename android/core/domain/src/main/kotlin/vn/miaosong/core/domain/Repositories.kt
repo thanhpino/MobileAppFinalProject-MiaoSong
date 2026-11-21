@@ -69,6 +69,7 @@ interface CartRepository {
 
 interface OrderRepository {
     fun observeCustomerOrders(uid: String): Flow<List<Order>>
+    fun observeCustomerReviews(uid: String): Flow<Map<String, Int>>
     fun observeStoreOrders(storeId: String): Flow<List<Order>>
     fun observeOrder(orderId: String): Flow<Order?>
     suspend fun getDeliveryQuote(storeId: String, dropoff: DeliveryAddress): AppResult<DeliveryQuote>

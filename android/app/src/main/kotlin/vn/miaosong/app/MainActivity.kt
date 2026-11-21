@@ -1,11 +1,16 @@
 package vn.miaosong.app
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Color as AndroidColor
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
@@ -27,8 +32,15 @@ import vn.miaosong.feature.merchant.MerchantDashboardScreen
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { /* Kết quả cấp quyền thông báo Android 13+ */ }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestNotificationPermissionIfNeeded()
+        MiaoMessagingService.syncCurrentToken()
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.light(
                 AndroidColor.TRANSPARENT,
@@ -39,6 +51,7 @@ class MainActivity : ComponentActivity() {
             MiaoSongTheme {
                 var activeRole by rememberSaveable { mutableStateOf(UserRole.CUSTOMER) }
                 var showOrderTracking by rememberSaveable { mutableStateOf(false) }
+                var trackingOrderId by rememberSaveable { mutableStateOf<String?>(null) }
                 var showAuthScreen by rememberSaveable { mutableStateOf(true) }
                 var showProfileScreen by rememberSaveable { mutableStateOf(false) }
                 var homeInitialTab by rememberSaveable { mutableStateOf(0) }
@@ -61,6 +74,7 @@ class MainActivity : ComponentActivity() {
                             onAuthSuccess = { user ->
                                 activeRole = user.role
                                 showAuthScreen = false
+                                MiaoMessagingService.syncCurrentToken()
                             },
                         )
                         showProfileScreen -> ProfileScreen(
@@ -83,7 +97,11 @@ class MainActivity : ComponentActivity() {
                             },
                         )
                         showOrderTracking -> OrderTrackingScreen(
-                            onBack = { showOrderTracking = false },
+                            orderId = trackingOrderId,
+                            onBack = {
+                                showOrderTracking = false
+                                trackingOrderId = null
+                            },
                         )
                         else -> CustomerHomeScreen(
                             onSwitchToMerchantPreview = {
@@ -97,7 +115,10 @@ class MainActivity : ComponentActivity() {
                                 loadingDurationMs = 2000L
                                 isLoading = true
                             },
-                            onOpenOrderTracking = { showOrderTracking = true },
+                            onOpenOrderTracking = { id ->
+                                trackingOrderId = id
+                                showOrderTracking = true
+                            },
                             onOpenProfile = { showProfileScreen = true },
                             initialTab = homeInitialTab,
                         )
@@ -110,6 +131,18 @@ class MainActivity : ComponentActivity() {
                         onDismiss = { isLoading = false },
                     )
                 }
+            }
+        }
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
     }
