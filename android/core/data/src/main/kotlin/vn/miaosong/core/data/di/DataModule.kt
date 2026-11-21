@@ -13,7 +13,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import vn.miaosong.core.data.local.CartDao
 import vn.miaosong.core.data.local.MiaoSongDatabase
+import vn.miaosong.core.data.repository.AuthRepositoryImpl
 import vn.miaosong.core.data.repository.CartRepositoryImpl
+import vn.miaosong.core.domain.AuthRepository
 import vn.miaosong.core.domain.CartRepository
 import javax.inject.Singleton
 
@@ -50,4 +52,8 @@ abstract class DataBindModule {
     @Binds
     @Singleton
     abstract fun bindCartRepository(impl: CartRepositoryImpl): CartRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAuthRepository(impl: AuthRepositoryImpl): AuthRepository
 }

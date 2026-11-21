@@ -145,6 +145,7 @@ fun CustomerHomeScreen(
     onSwitchToMerchantPreview: () -> Unit,
     onTriggerLoadingPreview: () -> Unit = {},
     onOpenOrderTracking: () -> Unit = {},
+    onOpenProfile: () -> Unit = {},
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
@@ -177,10 +178,10 @@ fun CustomerHomeScreen(
                         NavigationBarItem(
                             selected = selectedTab == index,
                             onClick = {
-                                if (index == 2) {
-                                    onOpenOrderTracking()
-                                } else {
-                                    selectedTab = index
+                                when (index) {
+                                    2 -> onOpenOrderTracking()
+                                    3 -> onOpenProfile()
+                                    else -> selectedTab = index
                                 }
                             },
                             icon = { Icon(icon, contentDescription = label) },
