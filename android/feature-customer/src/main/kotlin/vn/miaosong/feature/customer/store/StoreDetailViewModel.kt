@@ -24,6 +24,7 @@ import vn.miaosong.core.model.OptionGroup
 import vn.miaosong.core.model.OptionGroupType
 import vn.miaosong.core.model.Store
 import vn.miaosong.core.model.Voucher
+import vn.miaosong.feature.customer.FavoriteStoresHolder
 import java.text.Normalizer
 import java.util.regex.Pattern
 import javax.inject.Inject
@@ -89,8 +90,9 @@ class StoreDetailViewModel @Inject constructor(
         combine(
             storeContentFlow,
             cartRepository.observeCart(),
+            FavoriteStoresHolder.favoriteIds,
             _localState,
-        ) { content, cartLines, local ->
+        ) { content, cartLines, favIds, local ->
             val effectiveCategories = if (content.categories.isNotEmpty()) content.categories else DEFAULT_CATEGORIES
             val effectiveItems = if (content.menuItems.isNotEmpty()) content.menuItems else DEFAULT_ITEMS
 
@@ -134,7 +136,7 @@ class StoreDetailViewModel @Inject constructor(
                 filteredMenuItems = filtered,
                 vouchers = content.vouchers,
                 selectedCategoryPill = local.selectedCategoryPill,
-                isFavorited = local.isFavorited,
+                isFavorited = storeId in favIds,
                 isVoucherClaimed = local.isVoucherClaimed,
                 cartItemCount = cartCount,
                 cartTotalVnd = cartTotal,
@@ -176,11 +178,11 @@ class StoreDetailViewModel @Inject constructor(
     }
 
     fun toggleFavorite() {
+        val added = FavoriteStoresHolder.toggle(_storeIdFlow.value)
         _localState.update { current ->
-            val nextFav = !current.isFavorited
             current.copy(
-                isFavorited = nextFav,
-                toastMessage = if (nextFav) "Đã lưu quán vào danh sách yêu thích ❤️" else "Đã xóa khỏi danh sách yêu thích",
+                isFavorited = added,
+                toastMessage = if (added) "Đã lưu quán vào danh sách yêu thích ❤️" else "Đã xóa khỏi danh sách yêu thích",
             )
         }
     }

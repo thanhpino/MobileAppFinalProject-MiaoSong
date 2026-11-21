@@ -69,6 +69,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -115,6 +117,7 @@ fun StoreDetailScreen(
     }
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val clipboardManager = LocalClipboardManager.current
     var itemToCustomize by remember { mutableStateOf<MenuItem?>(null) }
 
     // Tự động tắt Toast thông báo sau 2.5s
@@ -136,7 +139,12 @@ fun StoreDetailScreen(
                 onToggleSearch = viewModel::toggleSearchVisibility,
                 onSearchQueryChange = viewModel::onSearchQueryChange,
                 onToggleFavorite = viewModel::toggleFavorite,
-                onShare = { viewModel.showToast("Đã sao chép liên kết chia sẻ quán! 📋") },
+                onShare = {
+                    val slug = uiState.store?.slug?.takeIf { it.isNotBlank() } ?: storeId
+                    val shareUrl = "https://miaosong-pro.web.app/s/$slug"
+                    clipboardManager.setText(AnnotatedString(shareUrl))
+                    viewModel.showToast("Đã sao chép link quán: $shareUrl")
+                },
             )
         },
         bottomBar = {

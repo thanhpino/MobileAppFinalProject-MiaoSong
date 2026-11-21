@@ -1,10 +1,18 @@
 package vn.miaosong.core.data.repository
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import com.google.firebase.Timestamp
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageMetadata
+import java.io.ByteArrayOutputStream
+import kotlin.math.max
+import kotlin.math.roundToInt
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -32,6 +40,8 @@ import javax.inject.Singleton
 class OrderRepositoryImpl @Inject constructor(
     private val firestore: FirebaseFirestore,
     private val functions: FirebaseFunctions,
+    private val storage: FirebaseStorage,
+    private val auth: FirebaseAuth,
 ) : OrderRepository {
 
     override fun observeCustomerOrders(uid: String): Flow<List<Order>> = callbackFlow {
@@ -222,15 +232,54 @@ class OrderRepositoryImpl @Inject constructor(
         stars: Int,
         tags: List<String>,
         comment: String,
-    ): AppResult<Unit> = callUnit(
-        "submitReview",
-        mapOf(
-            "orderId" to orderId,
-            "stars" to stars,
-            "tags" to tags,
-            "comment" to comment.trim(),
-        ),
-    )
+        imageBytes: ByteArray?,
+    ): AppResult<Unit> {
+        var uploadedUrl = ""
+        if (imageBytes != null && imageBytes.isNotEmpty()) {
+            val uid = auth.currentUser?.uid
+            if (uid != null) {
+                runCatching {
+                    val compressed = compressReviewPhoto(imageBytes)
+                    val ref = storage.reference.child("users/$uid/reviews/$orderId.jpg")
+                    val meta = StorageMetadata.Builder().setContentType("image/jpeg").build()
+                    ref.putBytes(compressed, meta).await()
+                    uploadedUrl = ref.downloadUrl.await().toString()
+                }
+            }
+        }
+        return callUnit(
+            "submitReview",
+            mapOf(
+                "orderId" to orderId,
+                "stars" to stars,
+                "tags" to tags,
+                "comment" to comment.trim(),
+                "imageUrl" to uploadedUrl,
+            ),
+        )
+    }
+
+    private fun compressReviewPhoto(rawBytes: ByteArray): ByteArray {
+        val decoded = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size) ?: return rawBytes
+        val maxDim = 900
+        val longest = max(decoded.width, decoded.height)
+        val scaled = if (longest > maxDim) {
+            val ratio = maxDim.toFloat() / longest.toFloat()
+            Bitmap.createScaledBitmap(
+                decoded,
+                (decoded.width * ratio).roundToInt().coerceAtLeast(1),
+                (decoded.height * ratio).roundToInt().coerceAtLeast(1),
+                true,
+            )
+        } else {
+            decoded
+        }
+        val out = ByteArrayOutputStream()
+        scaled.compress(Bitmap.CompressFormat.JPEG, 82, out)
+        if (scaled !== decoded) scaled.recycle()
+        decoded.recycle()
+        return out.toByteArray()
+    }
 
     private suspend fun callUnit(name: String, payload: Map<String, Any?>): AppResult<Unit> {
         return try {

@@ -10,6 +10,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.update
@@ -17,9 +18,12 @@ import kotlinx.coroutines.launch
 import vn.miaosong.core.common.AppResult
 import vn.miaosong.core.domain.AddressRepository
 import vn.miaosong.core.domain.AuthRepository
+import vn.miaosong.core.domain.StoreRepository
 import vn.miaosong.core.model.DeliveryAddress
+import vn.miaosong.core.model.Store
 import vn.miaosong.core.model.UserProfile
 import vn.miaosong.core.model.UserRole
+import vn.miaosong.feature.customer.FavoriteStoresHolder
 import javax.inject.Inject
 
 data class ProfileUiState(
@@ -34,6 +38,7 @@ data class ProfileUiState(
     ),
     val avatarUri: String? = null,
     val addresses: List<DeliveryAddress> = emptyList(),
+    val favoriteStores: List<Store> = emptyList(),
     val isEditing: Boolean = false,
     val editName: String = "",
     val editPhone: String = "",
@@ -56,6 +61,7 @@ data class ProfileUiState(
 class ProfileViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val addressRepository: AddressRepository,
+    private val storeRepository: StoreRepository,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -63,6 +69,18 @@ class ProfileViewModel @Inject constructor(
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
 
     init {
+        // 0. Luồng danh sách Quán yêu thích
+        viewModelScope.launch {
+            combine(
+                FavoriteStoresHolder.favoriteIds,
+                storeRepository.observeStores(),
+            ) { favIds, allStores ->
+                allStores.filter { it.id in favIds }
+            }.collect { favStores ->
+                _uiState.update { it.copy(favoriteStores = favStores) }
+            }
+        }
+
         // 1. Luồng theo dõi thông tin người dùng realtime
         viewModelScope.launch {
             authRepository.observeCurrentUser().collect { currentUser ->

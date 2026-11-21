@@ -128,7 +128,11 @@ class MainActivity : ComponentActivity() {
                             },
                             onOpenOrderHistory = {
                                 showProfileScreen = false
-                                homeInitialTab = 2
+                                homeInitialTab = 1
+                            },
+                            onOpenFavoriteStore = { storeId ->
+                                showProfileScreen = false
+                                selectedStoreId = storeId
                             },
                         )
                         activeRole == UserRole.MERCHANT -> MerchantDashboardScreen(

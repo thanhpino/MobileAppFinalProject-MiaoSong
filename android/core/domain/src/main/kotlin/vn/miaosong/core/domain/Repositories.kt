@@ -101,5 +101,6 @@ interface OrderRepository {
         stars: Int,
         tags: List<String>,
         comment: String,
+        imageBytes: ByteArray? = null,
     ): AppResult<Unit>
 }

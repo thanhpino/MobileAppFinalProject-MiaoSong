@@ -119,6 +119,7 @@ class StoreRepositoryImpl @Inject constructor(
                         stars = (doc.getLong("stars") ?: 5L).toInt(),
                         tags = (doc.get("tags") as? List<*>)?.mapNotNull { it as? String }.orEmpty(),
                         comment = doc.getString("comment").orEmpty(),
+                        imageUrl = doc.getString("imageUrl").orEmpty(),
                         createdAtEpochMs = doc.getTimestamp("createdAt")?.toDate()?.time ?: 0L,
                     )
                 }?.sortedByDescending { it.createdAtEpochMs }.orEmpty()

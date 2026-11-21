@@ -45,6 +45,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -163,13 +165,17 @@ fun CustomerHomeScreen(
         containerColor = MiaoColors.SurfaceCanvas,
         topBar = {
             StitchTopNavHeader(
+                onLogoClick = {
+                    selectedTab = 0
+                    onTriggerLoadingPreview()
+                },
                 onOpenCart = onOpenCart,
             )
         },
         bottomBar = {
             Column {
-                // Thanh nổi gọn gàng — ẩn khi đang ở tab Đơn hàng (vì đơn đang giao đã ở ngay trên cùng)
-                if (selectedTab != 2) {
+                // Thanh nổi gọn gàng — ẩn khi đang ở tab Đơn hàng (index 1)
+                if (selectedTab != 1) {
                     ActiveOrderFloatingPill(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                         onClick = { onOpenOrderTracking(null) },
@@ -181,7 +187,6 @@ fun CustomerHomeScreen(
                 ) {
                     val navItems = listOf(
                         "Trang chủ" to Icons.Default.Home,
-                        "Ưu đãi / Quán" to Icons.Default.Storefront,
                         "Đơn hàng" to Icons.AutoMirrored.Filled.ReceiptLong,
                         "Tài khoản" to Icons.Default.Person,
                     )
@@ -189,7 +194,7 @@ fun CustomerHomeScreen(
                         NavigationBarItem(
                             selected = selectedTab == index,
                             onClick = {
-                                if (index == 3) {
+                                if (index == 2) {
                                     onOpenProfile()
                                 } else {
                                     selectedTab = index
@@ -216,7 +221,7 @@ fun CustomerHomeScreen(
             }
         },
     ) { innerPadding ->
-        if (selectedTab == 2) {
+        if (selectedTab == 1) {
             CustomerOrdersTab(
                 onOpenOrderDetail = { order -> onOpenOrderTracking(order.id) },
                 modifier = Modifier.padding(innerPadding),
@@ -406,7 +411,8 @@ private fun Store.toStoreCard(): DemoStoreCard {
 
 @Composable
 private fun StitchTopNavHeader(
-    onOpenCart: () -> Unit,
+    onLogoClick: () -> Unit = {},
+    onOpenCart: () -> Unit = {},
 ) {
     Surface(
         color = Color.White,
@@ -420,9 +426,10 @@ private fun StitchTopNavHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            // Bên trái: Logo mèo tĩnh + Brand Name
+            // Bên trái: Logo mèo tĩnh + Brand Name (chạm để loading về trang chủ)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.clickable { onLogoClick() },
             ) {
                 MiaoAnimatedCatLogo(
                     size = 40.dp,
@@ -927,32 +934,70 @@ private fun FilterSortPillsRow(
     activeFilter: StoreSortFilter,
     onFilterSelect: (StoreSortFilter) -> Unit,
 ) {
+    var showSortDropdown by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier.horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         val isNearby = activeFilter == StoreSortFilter.NEARBY
-        Surface(
-            color = if (isNearby) MiaoColors.OnSurface else Color.White,
-            shape = RoundedCornerShape(999.dp),
-            border = if (isNearby) null else BorderStroke(1.dp, MiaoColors.OutlineVariant),
-            modifier = Modifier.clickable { onFilterSelect(StoreSortFilter.NEARBY) },
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                verticalAlignment = Alignment.CenterVertically,
+        val dropdownLabel = when (activeFilter) {
+            StoreSortFilter.NEARBY -> "Gần tôi nhất"
+            StoreSortFilter.FASTEST -> "Giao nhanh"
+            StoreSortFilter.TOP_RATED -> "Đánh giá 4.8★+"
+        }
+
+        Box {
+            Surface(
+                color = if (isNearby) MiaoColors.OnSurface else Color.White,
+                shape = RoundedCornerShape(999.dp),
+                border = if (isNearby) null else BorderStroke(1.dp, MiaoColors.OutlineVariant),
+                modifier = Modifier.clickable { showSortDropdown = true },
             ) {
-                Text(
-                    text = "Gần tôi nhất",
-                    color = if (isNearby) MiaoColors.SurfaceCanvas else MiaoColors.OnSurface,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = dropdownLabel,
+                        color = if (isNearby) MiaoColors.SurfaceCanvas else MiaoColors.OnSurface,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Chọn kiểu sắp xếp",
+                        tint = if (isNearby) MiaoColors.SurfaceCanvas else MiaoColors.OnSurface,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+
+            DropdownMenu(
+                expanded = showSortDropdown,
+                onDismissRequest = { showSortDropdown = false },
+                containerColor = Color.White,
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Gần tôi nhất", fontWeight = if (activeFilter == StoreSortFilter.NEARBY) FontWeight.Bold else FontWeight.Normal) },
+                    onClick = {
+                        showSortDropdown = false
+                        onFilterSelect(StoreSortFilter.NEARBY)
+                    },
                 )
-                Icon(
-                    imageVector = Icons.Default.KeyboardArrowDown,
-                    contentDescription = null,
-                    tint = if (isNearby) MiaoColors.SurfaceCanvas else MiaoColors.OnSurface,
-                    modifier = Modifier.size(16.dp),
+                DropdownMenuItem(
+                    text = { Text("Giao nhanh ⚡", fontWeight = if (activeFilter == StoreSortFilter.FASTEST) FontWeight.Bold else FontWeight.Normal) },
+                    onClick = {
+                        showSortDropdown = false
+                        onFilterSelect(StoreSortFilter.FASTEST)
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text("Đánh giá 4.8★+", fontWeight = if (activeFilter == StoreSortFilter.TOP_RATED) FontWeight.Bold else FontWeight.Normal) },
+                    onClick = {
+                        showSortDropdown = false
+                        onFilterSelect(StoreSortFilter.TOP_RATED)
+                    },
                 )
             }
         }
@@ -965,7 +1010,7 @@ private fun FilterSortPillsRow(
             modifier = Modifier.clickable { onFilterSelect(StoreSortFilter.FASTEST) },
         ) {
             Text(
-                text = "Giao nhanh nhất ⚡",
+                text = "Giao nhanh ⚡",
                 color = if (isFastest) Color.White else MiaoColors.SecondaryTeal,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
@@ -981,7 +1026,7 @@ private fun FilterSortPillsRow(
             modifier = Modifier.clickable { onFilterSelect(StoreSortFilter.TOP_RATED) },
         ) {
             Text(
-                text = "Đánh giá tốt 4.8★+",
+                text = "Đánh giá 4.8★+",
                 color = if (isTopRated) Color.White else MiaoColors.OnSurface,
                 fontSize = 12.sp,
                 fontWeight = if (isTopRated) FontWeight.Bold else FontWeight.SemiBold,

@@ -1,6 +1,15 @@
 package vn.miaosong.feature.customer
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import coil3.compose.AsyncImage
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -171,14 +180,15 @@ class CustomerOrdersViewModel @Inject constructor(
         }
     }
 
-    fun submitReview(order: Order, stars: Int, tags: List<String>, comment: String) {
+    fun submitReview(order: Order, stars: Int, tags: List<String>, comment: String, imageBytes: ByteArray? = null) {
         viewModelScope.launch {
             if (order.id.startsWith("demo_")) {
                 reviewedMap.value = reviewedMap.value + (order.id to stars)
-                feedbackState.value = "Cảm ơn bạn đã đánh giá $stars★ cho ${order.storeName}!"
+                val photoNote = if (imageBytes != null) " (kèm ảnh)" else ""
+                feedbackState.value = "Cảm ơn bạn đã đánh giá $stars★$photoNote cho ${order.storeName}!"
                 return@launch
             }
-            when (val res = orderRepository.submitReview(order.id, stars, tags, comment)) {
+            when (val res = orderRepository.submitReview(order.id, stars, tags, comment, imageBytes)) {
                 is AppResult.Success -> {
                     reviewedMap.value = reviewedMap.value + (order.id to stars)
                     feedbackState.value = "Đã gửi đánh giá $stars★ thành công!"
@@ -403,8 +413,8 @@ fun CustomerOrdersTab(
             order = target,
             initialStars = initialStars,
             onDismiss = { reviewingTarget = null },
-            onSubmit = { stars, tags, comment ->
-                viewModel.submitReview(target, stars, tags, comment)
+            onSubmit = { stars, tags, comment, imageBytes ->
+                viewModel.submitReview(target, stars, tags, comment, imageBytes)
                 reviewingTarget = null
             },
         )
@@ -692,12 +702,24 @@ private fun ReviewOrderDialog(
     order: Order,
     initialStars: Int = 5,
     onDismiss: () -> Unit,
-    onSubmit: (Int, List<String>, String) -> Unit,
+    onSubmit: (Int, List<String>, String, ByteArray?) -> Unit,
 ) {
+    val context = LocalContext.current
     var stars by remember(initialStars) { mutableIntStateOf(initialStars) }
     var comment by remember { mutableStateOf("") }
+    var pickedPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var pickedPhotoBytes by remember { mutableStateOf<ByteArray?>(null) }
     val allTags = listOf("Món ngon", "Đóng gói kỹ", "Giao nhanh", "Đúng ghi chú")
     var selectedTags by remember { mutableStateOf(setOf("Món ngon")) }
+
+    val reviewPhotoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        if (uri != null) {
+            pickedPhotoUri = uri
+            pickedPhotoBytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -763,11 +785,54 @@ private fun ReviewOrderDialog(
                     maxLines = 3,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                // Tải ảnh đánh giá món ăn qua Photo Picker
+                Surface(
+                    color = MiaoColors.SurfaceContainerLow,
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.25f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            reviewPhotoPicker.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                            )
+                        },
+                ) {
+                    Row(
+                        modifier = Modifier.padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        if (pickedPhotoUri != null) {
+                            AsyncImage(
+                                model = pickedPhotoUri,
+                                contentDescription = "Ảnh đánh giá",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(RoundedCornerShape(8.dp)),
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.PhotoCamera,
+                                contentDescription = "Thêm ảnh đánh giá",
+                                tint = MiaoColors.BrandOrange,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
+                        Text(
+                            text = if (pickedPhotoUri != null) "Đã chọn ảnh đánh giá (chạm để đổi)" else "Thêm ảnh món ăn (tùy chọn)",
+                            color = MiaoColors.BrandOrangeDark,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onSubmit(stars, selectedTags.toList(), comment) },
+                onClick = { onSubmit(stars, selectedTags.toList(), comment, pickedPhotoBytes) },
             ) { Text("Gửi đánh giá", color = MiaoColors.BrandOrange, fontWeight = FontWeight.Bold) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Để sau") } },
