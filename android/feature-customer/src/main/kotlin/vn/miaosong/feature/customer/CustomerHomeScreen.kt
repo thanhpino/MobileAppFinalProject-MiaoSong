@@ -57,6 +57,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -73,7 +74,8 @@ import vn.miaosong.core.model.Store
 
 private data class StoreTag(
     val label: String,
-    val isTeal: Boolean = false,
+    val bgColor: Color = Color(0xFFFFF2E6),
+    val textColor: Color = MiaoColors.BrandOrange,
 )
 
 private data class DemoStoreCard(
@@ -86,6 +88,7 @@ private data class DemoStoreCard(
     val shipNote: String,
     val tags: List<StoreTag>,
     val emojiThumb: String,
+    val isDimmed: Boolean = false,
 )
 
 private val DEMO_STORES = listOf(
@@ -94,45 +97,15 @@ private val DEMO_STORES = listOf(
         name = "Bún Riêu Cô Ba — Nguyễn Thị Thập",
         etaBadge = "15p",
         rating = "4.9",
-        reviewCount = "(1.2k+)",
-        distance = "850m",
-        shipNote = "Freeship đơn 50k",
+        reviewCount = "(128)",
+        distance = "Quận 7",
+        shipNote = "Mã MIAO10",
         tags = listOf(
-            StoreTag("Bán chạy", isTeal = true),
+            StoreTag("Đang mở", Color(0xFFE6FAF8), MiaoColors.SecondaryTeal),
             StoreTag("Quán quen"),
-            StoreTag("Giảm 10% · MIAO10"),
+            StoreTag("Giảm 10%"),
         ),
         emojiThumb = "🍜",
-    ),
-    DemoStoreCard(
-        id = "store_bun_cha_ca_nt",
-        name = "Bún Chả Cá Nha Trang — Lê Văn Lương",
-        etaBadge = "18p",
-        rating = "4.8",
-        reviewCount = "(860+)",
-        distance = "1.2km",
-        shipNote = "Phí giao 14k",
-        tags = listOf(
-            StoreTag("Gợi ý", isTeal = true),
-            StoreTag("Mã GIAM20K"),
-            StoreTag("Chả cá tươi"),
-        ),
-        emojiThumb = "🍲",
-    ),
-    DemoStoreCard(
-        id = "store_com_tam",
-        name = "Cơm Tấm Ba Ghiền — Đặng Văn Ngữ",
-        etaBadge = "20p",
-        rating = "4.8",
-        reviewCount = "(3.8k+)",
-        distance = "1.5km",
-        shipNote = "Phí giao 16k",
-        tags = listOf(
-            StoreTag("Bán chạy", isTeal = true),
-            StoreTag("Giảm 25k"),
-            StoreTag("Tặng canh"),
-        ),
-        emojiThumb = "🍛",
     ),
 )
 
@@ -266,26 +239,47 @@ fun CustomerHomeScreen(
 }
 
 private fun Store.toStoreCard(): DemoStoreCard {
-    val isBunRieu = slug.contains("rieu", ignoreCase = true)
-    val statusTag = when (schedule.manualStatus) {
-        ManualStoreStatus.OPEN -> StoreTag("Đang mở cửa", isTeal = true)
-        ManualStoreStatus.BUSY -> StoreTag("Quán đang bận")
-        ManualStoreStatus.CLOSED -> StoreTag("Đã đóng cửa")
+    val lower = "$name $slug".lowercase()
+    val emoji = when {
+        lower.contains("tra-sua") || lower.contains("trà sữa") || lower.contains("phuc-long") -> "🧋"
+        lower.contains("ca-phe") || lower.contains("cà phê") || lower.contains("coffee") -> "☕"
+        lower.contains("com") || lower.contains("cơm") -> "🍛"
+        lower.contains("banh-mi") || lower.contains("bánh mì") -> "🥖"
+        lower.contains("ga-ran") || lower.contains("gà") -> "🍗"
+        lower.contains("banh-ngot") || lower.contains("che") || lower.contains("chè") || lower.contains("kem") -> "🍰"
+        lower.contains("pizza") || lower.contains("mi-y") -> "🍕"
+        lower.contains("dimsum") || lower.contains("ha-cao") -> "🥟"
+        lower.contains("cha-ca") || lower.contains("chả cá") || lower.contains("lau") -> "🍲"
+        else -> "🍜"
     }
+
+    val statusTag = when (schedule.manualStatus) {
+        ManualStoreStatus.OPEN -> StoreTag("Đang mở", Color(0xFFE6FAF8), MiaoColors.SecondaryTeal)
+        ManualStoreStatus.BUSY -> StoreTag("Tạm bận", Color(0xFFFFF3CD), Color(0xFF785A00))
+        ManualStoreStatus.CLOSED -> StoreTag("Đóng cửa", Color(0xFFFFDAD6), Color(0xFF93000A))
+    }
+
+    val parts = address.split(",").map { it.trim() }
+    val district = parts.firstOrNull { it.startsWith("Quận") || it.startsWith("Q.") || it.contains("Phú Nhuận") || it.contains("Bình Thạnh") || it.contains("Thủ Đức") }
+        ?: parts.lastOrNull().orEmpty().ifEmpty { "TP.HCM" }
+
+    val eta = "${12 + (id.hashCode().let { kotlin.math.abs(it) } % 11)}p"
+
     return DemoStoreCard(
         id = id,
         name = name,
-        etaBadge = if (isBunRieu) "15p" else "18p",
+        etaBadge = eta,
         rating = "%.1f".format(ratingAvg),
         reviewCount = "($ratingCount)",
-        distance = address.substringAfterLast(",").trim().ifEmpty { "Q.7" },
-        shipNote = if (isBunRieu) "Mã MIAO10" else "Giao Lalamove",
+        distance = district,
+        shipNote = if (deliveryProvider.name == "LALAMOVE") "Giao Lalamove" else "Freeship 0Đ",
         tags = listOf(
             statusTag,
-            StoreTag(if (isBunRieu) "Quán quen" else "Bán chạy"),
-            StoreTag(if (isBunRieu) "Giảm 10% · MIAO10" else "Chả cá tươi"),
+            StoreTag(if (ratingAvg >= 4.8) "Quán quen" else "Gợi ý"),
+            StoreTag(if (slug.contains("rieu")) "Giảm 10%" else "Ưu đãi"),
         ),
-        emojiThumb = if (isBunRieu) "🍜" else "🍲",
+        emojiThumb = emoji,
+        isDimmed = schedule.manualStatus != ManualStoreStatus.OPEN,
     )
 }
 
@@ -827,7 +821,6 @@ private fun FilterSortPillsRow() {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StoreFeedCard(
     store: DemoStoreCard,
@@ -836,6 +829,7 @@ private fun StoreFeedCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .alpha(if (store.isDimmed) 0.72f else 1f)
             .clickable { onClick() },
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -925,22 +919,20 @@ private fun StoreFeedCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                // FlowRow: mỗi tag luôn 1 dòng gọn gàng, không bao giờ bẻ chữ
-                FlowRow(
+                // Luôn giữ đúng 1 hàng ngang duy nhất (cuộn ngang nếu nhiều tag), không bao giờ rớt dòng
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
                     store.tags.forEach { tag ->
-                        val bg = if (tag.isTeal) Color(0xFFE6FAF8) else Color(0xFFFFF2E6)
-                        val fg = if (tag.isTeal) MiaoColors.SecondaryTeal else MiaoColors.BrandOrange
                         Surface(
-                            color = bg,
+                            color = tag.bgColor,
                             shape = RoundedCornerShape(6.dp),
-                            border = BorderStroke(1.dp, fg.copy(alpha = 0.22f)),
+                            border = BorderStroke(1.dp, tag.textColor.copy(alpha = 0.22f)),
                         ) {
                             Text(
                                 text = tag.label,
-                                color = fg,
+                                color = tag.textColor,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
