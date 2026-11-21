@@ -63,9 +63,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
@@ -284,11 +287,15 @@ fun StoreDetailScreen(
                             MenuItemCard(
                                 item = menuItem,
                                 onClick = {
-                                    itemToCustomize = menuItem
-                                    onSelectItem(menuItem)
+                                    if (menuItem.isAvailable) {
+                                        itemToCustomize = menuItem
+                                        onSelectItem(menuItem)
+                                    }
                                 },
                                 onQuickAdd = {
-                                    itemToCustomize = menuItem
+                                    if (menuItem.isAvailable) {
+                                        itemToCustomize = menuItem
+                                    }
                                 },
                             )
                         }
@@ -297,14 +304,17 @@ fun StoreDetailScreen(
             }
 
             // Bottom Sheet tùy chỉnh món ăn (P2-03)
-            itemToCustomize?.let { currentItem ->
+            itemToCustomize?.let { selected ->
+                val liveItem = uiState.menuItems.firstOrNull { it.id == selected.id } ?: selected
                 ItemCustomizerBottomSheet(
-                    item = currentItem,
+                    item = liveItem,
                     storeId = storeId,
                     onDismiss = { itemToCustomize = null },
                     onAddToCart = { cartLine ->
-                        viewModel.addToCart(cartLine)
-                        itemToCustomize = null
+                        if (liveItem.isAvailable) {
+                            viewModel.addToCart(cartLine)
+                            itemToCustomize = null
+                        }
                     },
                 )
             }
@@ -934,14 +944,24 @@ private fun MenuItemCard(
     onClick: () -> Unit,
     onQuickAdd: () -> Unit,
 ) {
+    val isAvailable = item.isAvailable
+    val desaturateFilter = remember {
+        ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0.15f) })
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() },
+            .then(if (isAvailable) Modifier.clickable { onClick() } else Modifier),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.08f)),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isAvailable) Color.White else Color(0xFFF3F4F6),
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isAvailable) 1.dp else 0.dp),
+        border = BorderStroke(
+            1.dp,
+            if (isAvailable) MiaoColors.BrandOrange.copy(alpha = 0.08f) else Color(0xFFE0E0E0),
+        ),
     ) {
         Row(
             modifier = Modifier.padding(14.dp),
@@ -953,7 +973,7 @@ private fun MenuItemCard(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                // Badges
+                // Badges — giữ nguyên màu nổi bật cho tag "Tạm hết", chỉ làm mờ nhẹ các tag khác
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -962,6 +982,7 @@ private fun MenuItemCard(
                         Surface(
                             color = Color(0xFFFFF2E6),
                             shape = RoundedCornerShape(999.dp),
+                            modifier = Modifier.alpha(if (isAvailable) 1f else 0.45f),
                         ) {
                             Text(
                                 text = "Best Seller",
@@ -976,6 +997,7 @@ private fun MenuItemCard(
                         Surface(
                             color = Color(0xFFE6FAF8),
                             shape = RoundedCornerShape(999.dp),
+                            modifier = Modifier.alpha(if (isAvailable) 1f else 0.45f),
                         ) {
                             Text(
                                 text = "Yêu thích",
@@ -986,7 +1008,7 @@ private fun MenuItemCard(
                             )
                         }
                     }
-                    if (!item.isAvailable) {
+                    if (!isAvailable) {
                         Surface(
                             color = Color(0xFFFFDAD6),
                             shape = RoundedCornerShape(999.dp),
@@ -1007,7 +1029,7 @@ private fun MenuItemCard(
                     text = item.name,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MiaoColors.OnSurface,
+                    color = if (isAvailable) MiaoColors.OnSurface else MiaoColors.OnSurfaceVariant.copy(alpha = 0.6f),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -1017,7 +1039,7 @@ private fun MenuItemCard(
                     Text(
                         text = item.description,
                         fontSize = 12.sp,
-                        color = MiaoColors.OnSurfaceVariant,
+                        color = if (isAvailable) MiaoColors.OnSurfaceVariant else MiaoColors.OnSurfaceVariant.copy(alpha = 0.48f),
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -1025,7 +1047,7 @@ private fun MenuItemCard(
 
                 Spacer(modifier = Modifier.height(2.dp))
 
-                // Hàng giá & nút Thêm/Tùy chọn
+                // Hàng giá & nút Thêm/Tùy chọn (khóa và làm xám nút khi tạm hết)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -1039,38 +1061,44 @@ private fun MenuItemCard(
                             text = formatVnd(item.basePrice),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = MiaoColors.BrandOrange,
+                            color = if (isAvailable) MiaoColors.BrandOrange else MiaoColors.OnSurfaceVariant.copy(alpha = 0.55f),
                         )
                         if (item.name.contains("Đặc Biệt")) {
                             Text(
                                 text = formatVnd(item.basePrice + 10_000L),
                                 fontSize = 11.5.sp,
-                                color = MiaoColors.OnSurfaceVariant.copy(alpha = 0.6f),
+                                color = MiaoColors.OnSurfaceVariant.copy(alpha = if (isAvailable) 0.6f else 0.35f),
                                 textDecoration = TextDecoration.LineThrough,
                             )
                         }
                     }
 
                     Surface(
-                        color = MiaoColors.BrandOrange,
+                        color = if (isAvailable) MiaoColors.BrandOrange else Color(0xFFE0E0E0),
                         shape = RoundedCornerShape(999.dp),
-                        shadowElevation = 1.dp,
-                        modifier = Modifier.clickable { onQuickAdd() },
+                        shadowElevation = if (isAvailable) 1.dp else 0.dp,
+                        modifier = if (isAvailable) Modifier.clickable { onQuickAdd() } else Modifier,
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(3.dp),
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(15.dp),
-                            )
+                            if (isAvailable) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(15.dp),
+                                )
+                            }
                             Text(
-                                text = if (item.optionGroups.isNotEmpty()) "Tùy chọn" else "Thêm",
-                                color = Color.White,
+                                text = when {
+                                    !isAvailable -> "Hết hàng"
+                                    item.optionGroups.isNotEmpty() -> "Tùy chọn"
+                                    else -> "Thêm"
+                                },
+                                color = if (isAvailable) Color.White else Color(0xFF9E9E9E),
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                             )
@@ -1079,12 +1107,13 @@ private fun MenuItemCard(
                 }
             }
 
-            // Ảnh món bên phải
+            // Ảnh món bên phải (làm xám & mờ nhẹ khi tạm hết)
             Box(
                 modifier = Modifier
                     .size(96.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(MiaoColors.SurfaceContainerHigh),
+                    .background(MiaoColors.SurfaceContainerHigh)
+                    .alpha(if (isAvailable) 1f else 0.5f),
                 contentAlignment = Alignment.Center,
             ) {
                 if (item.imageUrl.isNotBlank()) {
@@ -1092,6 +1121,7 @@ private fun MenuItemCard(
                         model = item.imageUrl,
                         contentDescription = item.name,
                         contentScale = ContentScale.Crop,
+                        colorFilter = if (isAvailable) null else desaturateFilter,
                         modifier = Modifier.fillMaxSize(),
                     )
                 } else {

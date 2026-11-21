@@ -109,7 +109,7 @@ fun ItemCustomizerBottomSheet(
     val availableToppings = toppingGroup?.options?.ifEmpty { DEFAULT_TOPPINGS } ?: DEFAULT_TOPPINGS
 
     // Trạng thái chọn
-    var selectedSize by remember { mutableStateOf(availableSizes.firstOrNull()) }
+    var selectedSize by remember { mutableStateOf(availableSizes.firstOrNull { it.isAvailable }) }
     var selectedToppings by remember { mutableStateOf<Set<MenuOption>>(emptySet()) }
     var specialNote by remember { mutableStateOf("") }
     var quantity by remember { mutableIntStateOf(1) }
@@ -117,7 +117,7 @@ fun ItemCustomizerBottomSheet(
     // Tính đơn giá và thành tiền realtime
     val unitPrice = item.basePrice + (selectedSize?.priceDelta ?: 0L) + selectedToppings.sumOf { it.priceDelta }
     val lineTotalPrice = unitPrice * quantity
-    val canAddToCart = selectedSize != null && quantity >= 1
+    val canAddToCart = item.isAvailable && selectedSize?.isAvailable == true && quantity >= 1
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -324,17 +324,26 @@ fun ItemCustomizerBottomSheet(
                     }
 
                     availableSizes.forEach { sizeOption ->
-                        val isSelected = selectedSize?.id == sizeOption.id
+                        val isOptionAvailable = sizeOption.isAvailable
+                        val isSelected = isOptionAvailable && selectedSize?.id == sizeOption.id
                         Surface(
-                            color = if (isSelected) MiaoColors.SurfaceContainerLow else Color.White,
+                            color = when {
+                                !isOptionAvailable -> Color(0xFFF3F4F6)
+                                isSelected -> MiaoColors.SurfaceContainerLow
+                                else -> Color.White
+                            },
                             shape = RoundedCornerShape(14.dp),
                             border = BorderStroke(
                                 if (isSelected) 1.5.dp else 1.dp,
-                                if (isSelected) MiaoColors.BrandOrange else MiaoColors.OutlineVariant.copy(alpha = 0.5f),
+                                when {
+                                    !isOptionAvailable -> Color(0xFFE0E0E0)
+                                    isSelected -> MiaoColors.BrandOrange
+                                    else -> MiaoColors.OutlineVariant.copy(alpha = 0.5f)
+                                },
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { selectedSize = sizeOption },
+                                .then(if (isOptionAvailable) Modifier.clickable { selectedSize = sizeOption } else Modifier),
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
@@ -344,13 +353,20 @@ fun ItemCustomizerBottomSheet(
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier.weight(1f),
                                 ) {
                                     // Custom Radio Indicator
                                     Box(
                                         modifier = Modifier
                                             .size(20.dp)
                                             .clip(CircleShape)
-                                            .background(if (isSelected) MiaoColors.BrandOrange else MiaoColors.SurfaceContainerHighest),
+                                            .background(
+                                                when {
+                                                    !isOptionAvailable -> Color(0xFFDADADA)
+                                                    isSelected -> MiaoColors.BrandOrange
+                                                    else -> MiaoColors.SurfaceContainerHighest
+                                                },
+                                            ),
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         if (isSelected) {
@@ -366,14 +382,32 @@ fun ItemCustomizerBottomSheet(
                                         text = sizeOption.name,
                                         fontSize = 13.5.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                        color = MiaoColors.OnSurface,
+                                        color = if (isOptionAvailable) MiaoColors.OnSurface else MiaoColors.OnSurfaceVariant.copy(alpha = 0.55f),
                                     )
+                                    if (!isOptionAvailable) {
+                                        Surface(
+                                            color = Color(0xFFFFDAD6),
+                                            shape = RoundedCornerShape(999.dp),
+                                        ) {
+                                            Text(
+                                                text = "Tạm hết",
+                                                color = MiaoColors.Error,
+                                                fontSize = 9.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                                            )
+                                        }
+                                    }
                                 }
                                 Text(
                                     text = if (sizeOption.priceDelta > 0) "+${formatVnd(sizeOption.priceDelta)}" else "+0đ",
                                     fontSize = 13.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                                    color = if (sizeOption.priceDelta > 0) MiaoColors.BrandOrange else MiaoColors.OnSurfaceVariant,
+                                    color = when {
+                                        !isOptionAvailable -> MiaoColors.OnSurfaceVariant.copy(alpha = 0.45f)
+                                        sizeOption.priceDelta > 0 -> MiaoColors.BrandOrange
+                                        else -> MiaoColors.OnSurfaceVariant
+                                    },
                                 )
                             }
                         }
@@ -445,23 +479,38 @@ fun ItemCustomizerBottomSheet(
                     }
 
                     availableToppings.forEach { topping ->
-                        val isChecked = selectedToppings.contains(topping)
+                        val isOptionAvailable = topping.isAvailable
+                        val isChecked = isOptionAvailable && selectedToppings.contains(topping)
                         Surface(
-                            color = if (isChecked) MiaoColors.SurfaceContainerLow else Color.White,
+                            color = when {
+                                !isOptionAvailable -> Color(0xFFF3F4F6)
+                                isChecked -> MiaoColors.SurfaceContainerLow
+                                else -> Color.White
+                            },
                             shape = RoundedCornerShape(14.dp),
                             border = BorderStroke(
                                 1.dp,
-                                if (isChecked) MiaoColors.SecondaryTealBright else MiaoColors.OutlineVariant.copy(alpha = 0.5f),
+                                when {
+                                    !isOptionAvailable -> Color(0xFFE0E0E0)
+                                    isChecked -> MiaoColors.SecondaryTealBright
+                                    else -> MiaoColors.OutlineVariant.copy(alpha = 0.5f)
+                                },
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
-                                    selectedToppings = if (isChecked) {
-                                        selectedToppings - topping
+                                .then(
+                                    if (isOptionAvailable) {
+                                        Modifier.clickable {
+                                            selectedToppings = if (isChecked) {
+                                                selectedToppings - topping
+                                            } else {
+                                                if (selectedToppings.size < 4) selectedToppings + topping else selectedToppings
+                                            }
+                                        }
                                     } else {
-                                        if (selectedToppings.size < 4) selectedToppings + topping else selectedToppings
-                                    }
-                                },
+                                        Modifier
+                                    },
+                                ),
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
@@ -471,13 +520,20 @@ fun ItemCustomizerBottomSheet(
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier.weight(1f),
                                 ) {
                                     // Custom Checkbox Indicator
                                     Box(
                                         modifier = Modifier
                                             .size(20.dp)
                                             .clip(RoundedCornerShape(6.dp))
-                                            .background(if (isChecked) MiaoColors.SecondaryTeal else MiaoColors.SurfaceContainerHighest),
+                                            .background(
+                                                when {
+                                                    !isOptionAvailable -> Color(0xFFDADADA)
+                                                    isChecked -> MiaoColors.SecondaryTeal
+                                                    else -> MiaoColors.SurfaceContainerHighest
+                                                },
+                                            ),
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         if (isChecked) {
@@ -493,14 +549,28 @@ fun ItemCustomizerBottomSheet(
                                         text = topping.name,
                                         fontSize = 13.5.sp,
                                         fontWeight = if (isChecked) FontWeight.Bold else FontWeight.Medium,
-                                        color = MiaoColors.OnSurface,
+                                        color = if (isOptionAvailable) MiaoColors.OnSurface else MiaoColors.OnSurfaceVariant.copy(alpha = 0.55f),
                                     )
+                                    if (!isOptionAvailable) {
+                                        Surface(
+                                            color = Color(0xFFFFDAD6),
+                                            shape = RoundedCornerShape(999.dp),
+                                        ) {
+                                            Text(
+                                                text = "Tạm hết",
+                                                color = MiaoColors.Error,
+                                                fontSize = 9.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                                            )
+                                        }
+                                    }
                                 }
                                 Text(
                                     text = "+${formatVnd(topping.priceDelta)}",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = MiaoColors.BrandOrange,
+                                    color = if (isOptionAvailable) MiaoColors.BrandOrange else MiaoColors.OnSurfaceVariant.copy(alpha = 0.45f),
                                 )
                             }
                         }
@@ -713,14 +783,15 @@ fun ItemCustomizerBottomSheet(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MiaoColors.BrandOrange,
                             contentColor = Color.White,
-                            disabledContainerColor = MiaoColors.BrandOrange.copy(alpha = 0.4f),
+                            disabledContainerColor = Color(0xFFE0E0E0),
+                            disabledContentColor = Color(0xFF9E9E9E),
                         ),
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp),
                     ) {
                         Text(
-                            text = "Thêm vào giỏ • ${formatVnd(lineTotalPrice)}",
+                            text = if (!item.isAvailable) "Món tạm hết hàng" else "Thêm vào giỏ • ${formatVnd(lineTotalPrice)}",
                             fontSize = 13.5.sp,
                             fontWeight = FontWeight.Bold,
                         )

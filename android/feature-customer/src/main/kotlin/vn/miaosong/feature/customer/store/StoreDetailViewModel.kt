@@ -198,12 +198,21 @@ class StoreDetailViewModel @Inject constructor(
 
     fun addToCart(line: CartLine) {
         viewModelScope.launch {
+            val targetItem = uiState.value.menuItems.firstOrNull { it.id == line.menuItemId }
+            if (targetItem != null && !targetItem.isAvailable) {
+                showToast("Món \"${line.itemName}\" hiện đang tạm hết hàng")
+                return@launch
+            }
             cartRepository.upsertLine(line)
             showToast("Đã thêm \"${line.itemName}\" vào giỏ hàng 🐾")
         }
     }
 
     fun quickAddToCart(item: MenuItem) {
+        if (!item.isAvailable) {
+            showToast("Món \"${item.name}\" hiện đang tạm hết hàng")
+            return
+        }
         viewModelScope.launch {
             val storeId = _storeIdFlow.value
             val lineKey = CartLineKey.compute(item.id, null, emptyList(), null)
