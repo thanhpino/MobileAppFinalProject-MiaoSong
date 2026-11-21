@@ -64,8 +64,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import vn.miaosong.core.designsystem.components.MiaoAnimatedCatLogo
 import vn.miaosong.core.designsystem.theme.MiaoColors
+import vn.miaosong.core.model.ManualStoreStatus
+import vn.miaosong.core.model.Store
 
 private data class StoreTag(
     val label: String,
@@ -145,8 +149,17 @@ fun CustomerHomeScreen(
     onSwitchToMerchantPreview: () -> Unit,
     onTriggerLoadingPreview: () -> Unit = {},
     onOpenOrderTracking: () -> Unit = {},
+    viewModel: CustomerHomeViewModel = hiltViewModel(),
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // Map dữ liệu thật từ Cloud Firestore `miaosong-pro` sang StoreCard (fallback DEMO_STORES khi đang tải)
+    val storeCards = if (uiState.stores.isNotEmpty()) {
+        uiState.stores.map { it.toStoreCard() }
+    } else {
+        DEMO_STORES
+    }
 
     Scaffold(
         containerColor = MiaoColors.SurfaceCanvas,
@@ -241,8 +254,8 @@ fun CustomerHomeScreen(
                 FilterSortPillsRow()
             }
 
-            // 7. Danh sách quán ăn D2C gọn gàng
-            items(DEMO_STORES, key = { it.id }) { store ->
+            // 7. Danh sách quán ăn D2C realtime từ Cloud Firestore
+            items(storeCards, key = { it.id }) { store ->
                 StoreFeedCard(
                     store = store,
                     onClick = onTriggerLoadingPreview,
@@ -250,6 +263,30 @@ fun CustomerHomeScreen(
             }
         }
     }
+}
+
+private fun Store.toStoreCard(): DemoStoreCard {
+    val isBunRieu = slug.contains("rieu", ignoreCase = true)
+    val statusTag = when (schedule.manualStatus) {
+        ManualStoreStatus.OPEN -> StoreTag("Đang mở cửa", isTeal = true)
+        ManualStoreStatus.BUSY -> StoreTag("Quán đang bận")
+        ManualStoreStatus.CLOSED -> StoreTag("Đã đóng cửa")
+    }
+    return DemoStoreCard(
+        id = id,
+        name = name,
+        etaBadge = if (isBunRieu) "15p" else "18p",
+        rating = "%.1f".format(ratingAvg),
+        reviewCount = "($ratingCount)",
+        distance = address.substringAfterLast(",").trim().ifEmpty { "Q.7" },
+        shipNote = if (isBunRieu) "Mã MIAO10" else "Giao Lalamove",
+        tags = listOf(
+            statusTag,
+            StoreTag(if (isBunRieu) "Quán quen" else "Bán chạy"),
+            StoreTag(if (isBunRieu) "Giảm 10% · MIAO10" else "Chả cá tươi"),
+        ),
+        emojiThumb = if (isBunRieu) "🍜" else "🍲",
+    )
 }
 
 @Composable
