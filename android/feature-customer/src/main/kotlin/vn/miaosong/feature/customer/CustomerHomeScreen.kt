@@ -29,12 +29,14 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingBag
@@ -47,14 +49,20 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -75,13 +83,20 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import vn.miaosong.core.designsystem.components.MiaoAnimatedCatLogo
+import vn.miaosong.core.designsystem.components.MiaoSnackbarHost
 import vn.miaosong.core.designsystem.theme.MiaoColors
 import vn.miaosong.core.model.DeliveryAddress
 import vn.miaosong.core.model.ManualStoreStatus
+import vn.miaosong.core.model.NotificationItem
+import vn.miaosong.core.model.NotificationType
+import vn.miaosong.core.model.Order
+import vn.miaosong.core.model.OrderStatus
 import vn.miaosong.core.model.Store
 
 private data class StoreTag(
@@ -119,6 +134,55 @@ private val DEMO_STORES = listOf(
             StoreTag("Giảm 10%"),
         ),
         emojiThumb = "🍜",
+        avatarUrl = "https://lh3.googleusercontent.com/aida-public/AB6AXuDLEGTUDj1U_Yg11MfTv01vY_3AF_TF1ilrOTa0QYJDXkEjB2s9pLTEReU_XCfyVoTyXJo0-kGTiFUK-NolEEMFXJUUkBnNP63g97dPZEVofOtqWwywcKNYST6_QkTJ9nZoAxUuCD7YrBZLfgU4NZVVeXQnRpx6EdyIbVSI4sxXHPTmWpJlM_5zc3rC4k10r3U8w22Gw-jC7ahY7tLQ_DZMT3xl8an6mM7CBAleZ5Q",
+    ),
+    DemoStoreCard(
+        id = "store_bun_cha_ca_nt",
+        name = "Bún Chả Cá Nha Trang — Lê Văn Lương",
+        etaBadge = "18p",
+        rating = "4.8",
+        reviewCount = "(86)",
+        distance = "Quận 7",
+        shipNote = "Giao Lalamove",
+        tags = listOf(
+            StoreTag("Đang mở", Color(0xFFE6FAF8), MiaoColors.SecondaryTeal),
+            StoreTag("Quán quen"),
+            StoreTag("Ưu đãi"),
+        ),
+        emojiThumb = "🍲",
+        avatarUrl = "https://lh3.googleusercontent.com/aida-public/AB6AXuCwcq0m3nINlmuB2KG0iqONcr9xO1cdiAGHK9vo-O-DQWz1pnjK0Nu1_RIQwaVrBh9N7xhlx-o16KMQ8IozPwPuN1tkWXvtlbDfpGAv3bN_sKGDLCzEG_TUd7lWBGFli6mMqC0ETSO8HPa_A2NHYPdjq_bQy7kT7x38PQ-g6z1OWiJFIg-jOuYMnR76klNR4TsQEmpDN5U8D2UmfWcqbB_gh9OgivjXWr7YoJeu7eM",
+    ),
+    DemoStoreCard(
+        id = "store_com_tam_ba_ghien",
+        name = "Cơm Tấm Ba Ghiền — Sườn Bì Chả",
+        etaBadge = "20p",
+        rating = "4.9",
+        reviewCount = "(340)",
+        distance = "Quận 7",
+        shipNote = "Freeship 0Đ",
+        tags = listOf(
+            StoreTag("Đang mở", Color(0xFFE6FAF8), MiaoColors.SecondaryTeal),
+            StoreTag("Bestseller"),
+            StoreTag("Gợi ý"),
+        ),
+        emojiThumb = "🍛",
+        avatarUrl = "https://lh3.googleusercontent.com/aida-public/AB6AXuCEBiL4AIGbHXLkxb8FuNt105Uiyo-yCjJyl_aYulwSvznF-WMFeATEfdS1BewJT_79vsXkamcjtjFm0k2Ol7x6fXhfkgnIMzflDM0dKyATESjoncv2YYyc6QC450rFQNkm9JKJzwazUcVsWTEHq1RVcnD1rtqGRfjBs0UXwuYbWp3dXtgtmUXqeiq0UyytMCp0FtcG-zAIFAi7WD6KIQWPjosxlrPeicLA4CUY3wU",
+    ),
+    DemoStoreCard(
+        id = "store_tra_sua_miaotea",
+        name = "Trà Sữa & Cà Phê MiaoTea",
+        etaBadge = "12p",
+        rating = "4.7",
+        reviewCount = "(195)",
+        distance = "Quận 7",
+        shipNote = "Siêu tốc",
+        tags = listOf(
+            StoreTag("Đang mở", Color(0xFFE6FAF8), MiaoColors.SecondaryTeal),
+            StoreTag("Deal 50%"),
+            StoreTag("Freeship"),
+        ),
+        emojiThumb = "🧋",
+        avatarUrl = "https://lh3.googleusercontent.com/aida-public/AB6AXuCSgFyvurAxNBhD3FUkp4d0APxADrWGjNc9X_5_AOXQjP4TwbH_wdpsFm6aVPUBhWoLH_fdK8ceBr-87CWNz5uBcTTq38rA02dXH962HqoGod8HHChH1Q4DycVg82qLHCpeKc1Y_jq7X-OJFCTzK7rJrQtImY9ZbDijQ5HhQIosKRSFocPs4hKiUka1dvlVvz35YVbwUFx9EN3FYhhySWx9iXe-GbmLhRnRzd-P1iE",
     ),
 )
 
@@ -142,7 +206,17 @@ fun CustomerHomeScreen(
     viewModel: CustomerHomeViewModel = hiltViewModel(),
 ) {
     var selectedTab by rememberSaveable(initialTab) { mutableIntStateOf(initialTab) }
+    var showNotificationsSheet by rememberSaveable { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(uiState.toastFeedback) {
+        val msg = uiState.toastFeedback
+        if (msg != null) {
+            snackbarHostState.showSnackbar(msg)
+            viewModel.dismissToastFeedback()
+        }
+    }
 
     // Map dữ liệu thật từ Cloud Firestore `miaosong-pro` sang StoreCard
     val storeCards = if (uiState.stores.isNotEmpty()) {
@@ -165,6 +239,7 @@ fun CustomerHomeScreen(
 
     Scaffold(
         containerColor = MiaoColors.SurfaceCanvas,
+        snackbarHost = { MiaoSnackbarHost(snackbarHostState) },
         topBar = {
             StitchTopNavHeader(
                 onLogoClick = {
@@ -172,15 +247,19 @@ fun CustomerHomeScreen(
                     onTriggerLoadingPreview()
                 },
                 onOpenCart = onOpenCart,
+                unreadNotificationCount = uiState.unreadNotificationCount,
+                onOpenNotifications = { showNotificationsSheet = true },
             )
         },
         bottomBar = {
             Column {
-                // Thanh nổi gọn gàng — ẩn khi đang ở tab Đơn hàng (index 1)
-                if (selectedTab != 1) {
+                // Chỉ hiển thị thanh nổi khi KHÔNG ở tab Đơn hàng (index 1) VÀ thực sự có đơn hàng đang xử lý/đang giao
+                val ongoingOrder = uiState.activeOngoingOrder
+                if (selectedTab != 1 && ongoingOrder != null) {
                     ActiveOrderFloatingPill(
+                        order = ongoingOrder,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        onClick = { onOpenOrderTracking(null) },
+                        onClick = { onOpenOrderTracking(ongoingOrder.id) },
                     )
                 }
                 NavigationBar(
@@ -236,9 +315,9 @@ fun CustomerHomeScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                // 1. Thẻ mèo MiaoSong chào khách
+                // 1. Thẻ mèo MiaoSong chào khách (Banner phẳng tĩnh)
                 item {
-                    MiaoGreetingBanner(onClick = {})
+                    MiaoGreetingBanner()
                 }
 
                 // 2. Thanh chọn địa chỉ giao hàng thoáng rộng (không bị cắt trên Top Bar)
@@ -269,9 +348,12 @@ fun CustomerHomeScreen(
 
                 // 5. Banner cam khuyến mãi
                 item {
-                    PromoBannerCard(onClaimClick = {
-                        viewModel.selectCategory("Deal 50%")
-                    })
+                    PromoBannerCard(
+                        isClaimed = uiState.hasClaimedPromoBanner,
+                        onClaimClick = {
+                            viewModel.claimPromoVoucher()
+                        },
+                    )
                 }
 
                 // 6. Thanh lọc quán
@@ -363,6 +445,24 @@ fun CustomerHomeScreen(
             onDismiss = viewModel::closeAddressPicker,
         )
     }
+
+    // Modal Thông báo realtime từ backend & đơn hàng
+    if (showNotificationsSheet) {
+        NotificationBottomSheet(
+            notifications = uiState.notifications,
+            onDismiss = { showNotificationsSheet = false },
+            onNotificationClick = { notif ->
+                viewModel.markNotificationAsRead(notif.id)
+                if (notif.orderId != null) {
+                    showNotificationsSheet = false
+                    onOpenOrderTracking(notif.orderId)
+                } else if (notif.type == NotificationType.PROMOTION) {
+                    viewModel.claimPromoVoucher()
+                }
+            },
+            onMarkAllAsRead = { viewModel.markAllNotificationsAsRead() },
+        )
+    }
 }
 
 private fun Store.toStoreCard(): DemoStoreCard {
@@ -415,6 +515,8 @@ private fun Store.toStoreCard(): DemoStoreCard {
 private fun StitchTopNavHeader(
     onLogoClick: () -> Unit = {},
     onOpenCart: () -> Unit = {},
+    unreadNotificationCount: Int = 0,
+    onOpenNotifications: () -> Unit = {},
 ) {
     Surface(
         color = Color.White,
@@ -484,7 +586,9 @@ private fun StitchTopNavHeader(
                     color = MiaoColors.SurfaceContainerLow,
                     shape = CircleShape,
                     border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.2f)),
-                    modifier = Modifier.size(38.dp),
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clickable { onOpenNotifications() },
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
@@ -493,14 +597,16 @@ private fun StitchTopNavHeader(
                             tint = MiaoColors.OnSurface,
                             modifier = Modifier.size(19.dp),
                         )
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(7.dp)
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(MiaoColors.BrandOrange),
-                        )
+                        if (unreadNotificationCount > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(7.dp)
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(MiaoColors.BrandOrange),
+                            )
+                        }
                     }
                 }
             }
@@ -565,14 +671,12 @@ private fun DeliveryAddressRow(
 }
 
 @Composable
-private fun MiaoGreetingBanner(onClick: () -> Unit) {
+private fun MiaoGreetingBanner() {
     Surface(
         color = Color(0xFFFFF2E6),
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.2f)),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
             modifier = Modifier
@@ -856,7 +960,10 @@ private fun QuickCategoryGrid(
 }
 
 @Composable
-private fun PromoBannerCard(onClaimClick: () -> Unit) {
+private fun PromoBannerCard(
+    isClaimed: Boolean,
+    onClaimClick: () -> Unit,
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -914,15 +1021,18 @@ private fun PromoBannerCard(onClaimClick: () -> Unit) {
             Spacer(modifier = Modifier.width(10.dp))
             Button(
                 onClick = onClaimClick,
+                enabled = !isClaimed,
                 shape = RoundedCornerShape(999.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.White,
-                    contentColor = MiaoColors.BrandOrange,
+                    containerColor = if (isClaimed) Color.White.copy(alpha = 0.88f) else Color.White,
+                    contentColor = if (isClaimed) MiaoColors.SecondaryTeal else MiaoColors.BrandOrange,
+                    disabledContainerColor = Color.White.copy(alpha = 0.88f),
+                    disabledContentColor = MiaoColors.SecondaryTeal,
                 ),
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
             ) {
                 Text(
-                    text = "Lấy mã ngay",
+                    text = if (isClaimed) "Đã nhận ✓" else "Lấy mã ngay",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.ExtraBold,
                 )
@@ -1179,9 +1289,20 @@ private fun StoreFeedCard(
  */
 @Composable
 private fun ActiveOrderFloatingPill(
+    order: Order,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
+    val statusLabel = when (order.status) {
+        OrderStatus.CONFIRMED -> "● Quán đã nhận đơn"
+        OrderStatus.FINDING_DRIVER -> "● Đang tìm shipper"
+        OrderStatus.DRIVER_ASSIGNED -> "● Đã có shipper"
+        OrderStatus.ARRIVED_AT_STORE -> "● Shipper đã tới quán"
+        OrderStatus.PICKED_UP -> "● Shipper đã lấy món"
+        OrderStatus.DELIVERING -> "● Đang giao đến bạn"
+        else -> "● Đang chuẩn bị"
+    }
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -1220,7 +1341,7 @@ private fun ActiveOrderFloatingPill(
                     verticalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
                     Text(
-                        text = "Đơn hàng đang giao đến bạn",
+                        text = "Đơn #${order.code.ifBlank { order.id.takeLast(6) }} đang giao",
                         color = MiaoColors.OnSurface,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
@@ -1233,7 +1354,7 @@ private fun ActiveOrderFloatingPill(
                         border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.35f)),
                     ) {
                         Text(
-                            text = "● Đang đến",
+                            text = statusLabel,
                             color = MiaoColors.BrandOrangeDark,
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.ExtraBold,
@@ -1253,6 +1374,278 @@ private fun ActiveOrderFloatingPill(
                 maxLines = 1,
                 softWrap = false,
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NotificationBottomSheet(
+    notifications: List<NotificationItem>,
+    onDismiss: () -> Unit,
+    onNotificationClick: (NotificationItem) -> Unit,
+    onMarkAllAsRead: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(bottom = 16.dp),
+        ) {
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Surface(
+                        color = MiaoColors.BrandOrange.copy(alpha = 0.12f),
+                        shape = CircleShape,
+                        modifier = Modifier.size(36.dp),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = null,
+                                tint = MiaoColors.BrandOrange,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = "Thông báo",
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MiaoColors.OnSurface,
+                            )
+                            val unreadCount = notifications.count { !it.isRead }
+                            if (unreadCount > 0) {
+                                Surface(
+                                    color = MiaoColors.BrandOrange,
+                                    shape = RoundedCornerShape(999.dp),
+                                ) {
+                                    Text(
+                                        text = "$unreadCount mới",
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                                    )
+                                }
+                            }
+                        }
+                        Text(
+                            text = "Tiến độ đơn hàng & ưu đãi độc quyền",
+                            fontSize = 11.5.sp,
+                            color = MiaoColors.OnSurfaceVariant,
+                        )
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onMarkAllAsRead) {
+                        Text(
+                            text = "Đọc tất cả",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MiaoColors.BrandOrange,
+                        )
+                    }
+                    Surface(
+                        color = MiaoColors.SurfaceContainerLow,
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clickable { onDismiss() },
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Đóng",
+                                tint = MiaoColors.OnSurface,
+                                modifier = Modifier.size(17.dp),
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (notifications.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 40.dp, horizontal = 24.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        MiaoAnimatedCatLogo(size = 56.dp, animated = false)
+                        Text(
+                            text = "Chưa có thông báo nào mới",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MiaoColors.OnSurface,
+                        )
+                        Text(
+                            text = "Mèo thần tài sẽ báo ngay khi đơn hàng đổi trạng thái hoặc có voucher hot!",
+                            fontSize = 12.sp,
+                            color = MiaoColors.OnSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 480.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    items(notifications, key = { it.id }) { notif ->
+                        val isUnread = !notif.isRead
+                        val icon = when (notif.type) {
+                            NotificationType.ORDER_STATUS -> Icons.Default.TwoWheeler
+                            NotificationType.PROMOTION -> Icons.Default.CardGiftcard
+                            NotificationType.SYSTEM -> Icons.Default.NotificationsActive
+                        }
+                        val iconBg = when (notif.type) {
+                            NotificationType.ORDER_STATUS -> if (isUnread) Color(0xFFFFECE0) else MiaoColors.SurfaceContainerLow
+                            NotificationType.PROMOTION -> if (isUnread) Color(0xFFFFF0F5) else MiaoColors.SurfaceContainerLow
+                            NotificationType.SYSTEM -> if (isUnread) Color(0xFFE6FAF8) else MiaoColors.SurfaceContainerLow
+                        }
+                        val iconTint = when (notif.type) {
+                            NotificationType.ORDER_STATUS -> MiaoColors.BrandOrange
+                            NotificationType.PROMOTION -> Color(0xFFD92D20)
+                            NotificationType.SYSTEM -> MiaoColors.SecondaryTeal
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (isUnread) Color(0xFFFFF9F5) else Color.White,
+                            border = BorderStroke(
+                                1.dp,
+                                if (isUnread) MiaoColors.BrandOrange.copy(alpha = 0.35f) else MiaoColors.OutlineVariant.copy(alpha = 0.7f),
+                            ),
+                            shadowElevation = if (isUnread) 2.dp else 0.dp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onNotificationClick(notif) },
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.Top,
+                            ) {
+                                Surface(
+                                    color = iconBg,
+                                    shape = CircleShape,
+                                    modifier = Modifier.size(38.dp),
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = null,
+                                            tint = iconTint,
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                    }
+                                }
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            text = notif.title,
+                                            fontSize = 13.5.sp,
+                                            fontWeight = if (isUnread) FontWeight.Bold else FontWeight.SemiBold,
+                                            color = MiaoColors.OnSurface,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        if (isUnread) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(7.dp)
+                                                    .clip(CircleShape)
+                                                    .background(MiaoColors.BrandOrange),
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = notif.body,
+                                        fontSize = 12.sp,
+                                        color = if (isUnread) MiaoColors.OnSurface else MiaoColors.OnSurfaceVariant,
+                                        lineHeight = 17.sp,
+                                    )
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 4.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        val timeText = if (notif.timestampEpochMs > 0L) {
+                                            val diffMin = (System.currentTimeMillis() - notif.timestampEpochMs) / 60000L
+                                            when {
+                                                diffMin < 2 -> "Vừa xong"
+                                                diffMin < 60 -> "$diffMin phút trước"
+                                                diffMin < 1440 -> "${diffMin / 60} giờ trước"
+                                                else -> "${diffMin / 1440} ngày trước"
+                                            }
+                                        } else "Hôm nay"
+                                        Text(
+                                            text = timeText,
+                                            fontSize = 10.5.sp,
+                                            color = MiaoColors.OnSurfaceVariant.copy(alpha = 0.8f),
+                                        )
+                                        if (notif.orderId != null) {
+                                            Text(
+                                                text = "Xem tiến độ >",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MiaoColors.BrandOrange,
+                                            )
+                                        } else if (notif.type == NotificationType.PROMOTION) {
+                                            Text(
+                                                text = "Lấy mã >",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFFD92D20),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

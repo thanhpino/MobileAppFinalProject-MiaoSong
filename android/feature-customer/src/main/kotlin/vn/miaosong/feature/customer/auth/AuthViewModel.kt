@@ -42,19 +42,30 @@ class AuthViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(AuthUiState())
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
+    private var previousUserWasLoggedIn = false
+
     init {
         viewModelScope.launch {
             authRepository.observeCurrentUser().collect { user ->
                 if (user == null) {
+                    val hadUser = previousUserWasLoggedIn
+                    previousUserWasLoggedIn = false
                     _uiState.update {
                         it.copy(
                             isSuccess = false,
                             currentUser = null,
+                            successMessage = if (hadUser) "Đã đăng xuất tài khoản" else null,
                         )
                     }
+                } else {
+                    previousUserWasLoggedIn = true
                 }
             }
         }
+    }
+
+    fun dismissSuccessMessage() {
+        _uiState.update { it.copy(successMessage = null) }
     }
 
     fun resetAuthState() {
