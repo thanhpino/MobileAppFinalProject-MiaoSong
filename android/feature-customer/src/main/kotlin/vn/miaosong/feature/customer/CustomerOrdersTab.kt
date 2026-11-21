@@ -292,12 +292,14 @@ private fun buildSampleCustomerOrders(): List<Order> {
 @Composable
 fun CustomerOrdersTab(
     onOpenOrderDetail: (Order) -> Unit,
+    onNavigateToCheckout: (Order) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: CustomerOrdersViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    var reviewingOrder by remember { mutableStateOf<Order?>(null) }
+    var reviewingTarget by remember { mutableStateOf<Pair<Order, Int>?>(null) }
+    var reorderingOrder by remember { mutableStateOf<Order?>(null) }
 
     LaunchedEffect(uiState.feedbackMessage) {
         val msg = uiState.feedbackMessage
@@ -372,8 +374,12 @@ fun CustomerOrdersTab(
                 PastCustomerOrderCard(
                     order = order,
                     votedStars = uiState.reviewedStarsByOrderId[order.id],
-                    onVoteClick = { reviewingOrder = order },
-                    onReorderClick = { viewModel.reorder(order) },
+                    onSelectStar = { star -> reviewingTarget = order to star },
+                    onReorderClick = {
+                        viewModel.reorder(order)
+                        reorderingOrder = order
+                        onNavigateToCheckout(order)
+                    },
                 )
             }
         }
@@ -384,13 +390,25 @@ fun CustomerOrdersTab(
         )
     }
 
-    reviewingOrder?.let { target ->
+    reviewingTarget?.let { (target, initialStars) ->
         ReviewOrderDialog(
             order = target,
-            onDismiss = { reviewingOrder = null },
+            initialStars = initialStars,
+            onDismiss = { reviewingTarget = null },
             onSubmit = { stars, tags, comment ->
                 viewModel.submitReview(target, stars, tags, comment)
-                reviewingOrder = null
+                reviewingTarget = null
+            },
+        )
+    }
+
+    reorderingOrder?.let { target ->
+        ReorderQuickReviewDialog(
+            order = target,
+            onDismiss = { reorderingOrder = null },
+            onProceed = { updatedMethod ->
+                reorderingOrder = null
+                onOpenOrderDetail(target.copy(payment = target.payment.copy(method = updatedMethod)))
             },
         )
     }
@@ -518,7 +536,7 @@ private fun ActiveCustomerOrderCard(
 private fun PastCustomerOrderCard(
     order: Order,
     votedStars: Int?,
-    onVoteClick: () -> Unit,
+    onSelectStar: (Int) -> Unit,
     onReorderClick: () -> Unit,
 ) {
     val isCompleted = order.status == OrderStatus.COMPLETED
@@ -600,32 +618,31 @@ private fun PastCustomerOrderCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Surface(
-                        color = Color(0xFFFFF8E6),
-                        shape = RoundedCornerShape(999.dp),
-                        border = BorderStroke(1.dp, Color(0xFFD97706).copy(alpha = 0.35f)),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable(enabled = votedStars == null) { onVoteClick() },
+                    // Hàng 5 ngôi sao trực tiếp: chưa đánh giá -> 5 sao trắng viền; đã đánh giá -> tô màu đúng số sao
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
-                        Row(
-                            modifier = Modifier.padding(vertical = 10.dp),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
+                        (1..5).forEach { star ->
+                            val isFilled = votedStars != null && star <= votedStars
                             Icon(
-                                imageVector = Icons.Default.Star,
-                                contentDescription = null,
-                                tint = Color(0xFFD97706),
-                                modifier = Modifier.size(16.dp),
+                                imageVector = if (isFilled) Icons.Default.Star else Icons.Default.StarBorder,
+                                contentDescription = "$star sao",
+                                tint = if (isFilled) Color(0xFFD97706) else MiaoColors.OutlineVariant,
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clickable(enabled = votedStars == null) { onSelectStar(star) },
                             )
+                        }
+                        if (votedStars != null) {
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = if (votedStars != null) "Đã đánh giá $votedStars★" else "Đánh giá",
+                                text = "$votedStars/5",
                                 color = Color(0xFF92400E),
-                                fontSize = 12.5.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                             )
                         }
@@ -634,12 +651,10 @@ private fun PastCustomerOrderCard(
                     Surface(
                         color = MiaoColors.BrandOrange,
                         shape = RoundedCornerShape(999.dp),
-                        modifier = Modifier
-                            .weight(1.25f)
-                            .clickable { onReorderClick() },
+                        modifier = Modifier.clickable { onReorderClick() },
                     ) {
                         Row(
-                            modifier = Modifier.padding(vertical = 10.dp),
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
@@ -667,10 +682,11 @@ private fun PastCustomerOrderCard(
 @Composable
 private fun ReviewOrderDialog(
     order: Order,
+    initialStars: Int = 5,
     onDismiss: () -> Unit,
     onSubmit: (Int, List<String>, String) -> Unit,
 ) {
-    var stars by remember { mutableIntStateOf(5) }
+    var stars by remember(initialStars) { mutableIntStateOf(initialStars) }
     var comment by remember { mutableStateOf("") }
     val allTags = listOf("Món ngon", "Đóng gói kỹ", "Giao nhanh", "Đúng ghi chú")
     var selectedTags by remember { mutableStateOf(setOf("Món ngon")) }
@@ -747,6 +763,151 @@ private fun ReviewOrderDialog(
             ) { Text("Gửi đánh giá", color = MiaoColors.BrandOrange, fontWeight = FontWeight.Bold) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Để sau") } },
+    )
+}
+
+@Composable
+private fun ReorderQuickReviewDialog(
+    order: Order,
+    onDismiss: () -> Unit,
+    onProceed: (PaymentMethod) -> Unit,
+) {
+    var selectedMethod by remember { mutableStateOf(order.payment.method) }
+    var quantities by remember { mutableStateOf(order.items.associate { it.lineKey to it.quantity }) }
+
+    val updatedSubtotal = order.items.sumOf { snap ->
+        val qty = quantities[snap.lineKey] ?: 0
+        snap.unitPrice * qty
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.White,
+        title = {
+            Text(
+                text = "Đặt lại từ ${order.storeName}",
+                fontWeight = FontWeight.Bold,
+                color = MiaoColors.OnSurface,
+                fontSize = 17.sp,
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    text = "Đã giữ nguyên món, Size & Topping cũ — bạn có thể chỉnh số lượng hoặc đổi phương thức thanh toán trước khi đặt:",
+                    fontSize = 12.sp,
+                    color = MiaoColors.OnSurfaceVariant,
+                )
+
+                order.items.forEach { snap ->
+                    val qty = quantities[snap.lineKey] ?: 0
+                    val opts = buildList {
+                        if (snap.sizeName.isNotBlank()) add(snap.sizeName)
+                        if (snap.toppingNames.isNotEmpty()) add(snap.toppingNames.joinToString(", "))
+                    }.joinToString(" · ")
+
+                    Surface(
+                        color = MiaoColors.SurfaceCanvas,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = snap.itemName,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.5.sp,
+                                    color = MiaoColors.OnSurface,
+                                )
+                                if (opts.isNotBlank()) {
+                                    Text(
+                                        text = opts,
+                                        fontSize = 11.5.sp,
+                                        color = MiaoColors.OnSurfaceVariant,
+                                    )
+                                }
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Surface(
+                                    color = Color.White,
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(1.dp, MiaoColors.OutlineVariant),
+                                    modifier = Modifier.clickable {
+                                        quantities = quantities + (snap.lineKey to (qty - 1).coerceAtLeast(0))
+                                    },
+                                ) {
+                                    Text("−", modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp), fontWeight = FontWeight.Bold)
+                                }
+                                Text("$qty", fontWeight = FontWeight.ExtraBold, fontSize = 13.5.sp)
+                                Surface(
+                                    color = MiaoColors.BrandOrange,
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.clickable {
+                                        quantities = quantities + (snap.lineKey to (qty + 1))
+                                    },
+                                ) {
+                                    Text("+", color = Color.White, modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp), fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Text(
+                    text = "Phương thức thanh toán",
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MiaoColors.OnSurface,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = selectedMethod == PaymentMethod.COD,
+                        onClick = { selectedMethod = PaymentMethod.COD },
+                        label = { Text("Tiền mặt (COD)", maxLines = 1) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MiaoColors.BrandOrange,
+                            selectedLabelColor = Color.White,
+                        ),
+                    )
+                    FilterChip(
+                        selected = selectedMethod == PaymentMethod.ZALOPAY,
+                        onClick = { selectedMethod = PaymentMethod.ZALOPAY },
+                        label = { Text("ZaloPay", maxLines = 1) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MiaoColors.BrandOrange,
+                            selectedLabelColor = Color.White,
+                        ),
+                    )
+                }
+
+                Text(
+                    text = "Tạm tính món: ${MoneyFormatter.formatVnd(updatedSubtotal)}",
+                    color = MiaoColors.BrandOrangeDark,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 14.sp,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = updatedSubtotal > 0L,
+                onClick = { onProceed(selectedMethod) },
+            ) { Text("Tiếp tục đặt hàng", color = MiaoColors.BrandOrange, fontWeight = FontWeight.Bold) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Đóng") } },
     )
 }
 
