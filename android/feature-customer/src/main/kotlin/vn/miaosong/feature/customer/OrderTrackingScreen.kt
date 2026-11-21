@@ -60,6 +60,7 @@ import androidx.compose.material.icons.filled.TwoWheeler
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -112,6 +113,7 @@ import kotlinx.coroutines.launch
 import vn.miaosong.core.common.AppResult
 import vn.miaosong.core.common.MoneyFormatter
 import vn.miaosong.core.designsystem.components.MiaoAnimatedCatLogo
+import vn.miaosong.core.designsystem.components.MiaoSnackbarHost
 import vn.miaosong.core.designsystem.theme.MiaoColors
 import vn.miaosong.core.domain.AuthRepository
 import vn.miaosong.core.domain.OrderRepository
@@ -417,7 +419,7 @@ fun OrderTrackingScreen(
 
     Scaffold(
         containerColor = MiaoColors.SurfaceCanvas,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { MiaoSnackbarHost(snackbarHostState) },
         topBar = {
             Surface(color = Color.White, shadowElevation = 2.dp) {
                 Row(
@@ -516,13 +518,23 @@ fun OrderTrackingScreen(
                                     .align(Alignment.BottomStart)
                                     .padding(10.dp),
                             ) {
-                                Text(
-                                    text = "Đang tìm đường ngắn nhất...",
-                                    color = MiaoColors.OnSurface,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(13.dp),
+                                        color = MiaoColors.BrandOrange,
+                                        strokeWidth = 2.dp,
+                                    )
+                                    Text(
+                                        text = "Đang tải...",
+                                        color = MiaoColors.OnSurface,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
                             }
                         }
 

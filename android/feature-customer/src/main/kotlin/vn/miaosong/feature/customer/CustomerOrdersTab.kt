@@ -68,6 +68,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import vn.miaosong.core.common.AppResult
 import vn.miaosong.core.common.MoneyFormatter
+import vn.miaosong.core.designsystem.components.MiaoSnackbarHost
 import vn.miaosong.core.designsystem.theme.MiaoColors
 import vn.miaosong.core.domain.AuthRepository
 import vn.miaosong.core.domain.CartLineKey
@@ -391,7 +392,7 @@ fun CustomerOrdersTab(
             }
         }
 
-        SnackbarHost(
+        MiaoSnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
