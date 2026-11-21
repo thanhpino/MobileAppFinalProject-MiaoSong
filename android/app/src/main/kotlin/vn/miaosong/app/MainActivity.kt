@@ -141,9 +141,10 @@ class MainActivity : ComponentActivity() {
                         showCartScreen -> CartScreen(
                             onBack = { showCartScreen = false },
                             onAddMore = { showCartScreen = false },
-                            onOrderSuccess = {
+                            onOrderSuccess = { order ->
                                 showCartScreen = false
                                 selectedStoreId = null
+                                trackingOrderId = order.id
                                 showOrderTracking = true
                             },
                         )
