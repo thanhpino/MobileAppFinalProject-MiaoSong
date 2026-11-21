@@ -261,5 +261,6 @@ data class Review(
     val stars: Int,
     val tags: List<String> = emptyList(),
     val comment: String = "",
+    val imageUrl: String = "",
     val createdAtEpochMs: Long = 0L,
 )

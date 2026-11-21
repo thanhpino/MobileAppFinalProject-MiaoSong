@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Domain
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
@@ -101,6 +102,7 @@ fun ProfileScreen(
     onBack: () -> Unit = {},
     onLoggedOut: () -> Unit = {},
     onOpenOrderHistory: () -> Unit = {},
+    onOpenFavoriteStore: (String) -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
     modifier: Modifier = Modifier,
 ) {
@@ -163,6 +165,7 @@ fun ProfileScreen(
         onDeleteAddress = viewModel::deleteAddress,
         onSignOut = viewModel::signOut,
         onOpenOrderHistory = onOpenOrderHistory,
+        onOpenFavoriteStore = onOpenFavoriteStore,
         modifier = modifier,
     )
 }
@@ -197,6 +200,7 @@ fun ProfileContent(
     onDeleteAddress: (String) -> Unit = {},
     onSignOut: () -> Unit = {},
     onOpenOrderHistory: () -> Unit = {},
+    onOpenFavoriteStore: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -237,6 +241,104 @@ fun ProfileContent(
                 onSetDefaultAddress = onSetDefaultAddress,
                 onDeleteAddress = onDeleteAddress,
             )
+
+            // ❤️ Section 2.5: Danh sách Quán yêu thích
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Favorite,
+                            contentDescription = null,
+                            tint = Color(0xFFE53935),
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Quán yêu thích (${uiState.favoriteStores.size})",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MiaoColors.OnSurface,
+                        )
+                    }
+
+                    if (uiState.favoriteStores.isEmpty()) {
+                        Text(
+                            text = "Bạn chưa lưu quán yêu thích nào. Chạm vào biểu tượng trái tim trong trang quán để lưu nhanh nhé!",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MiaoColors.OnSurfaceVariant,
+                        )
+                    } else {
+                        uiState.favoriteStores.forEach { favStore ->
+                            Surface(
+                                color = MiaoColors.SurfaceCanvas,
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onOpenFavoriteStore(favStore.id) },
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(44.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(MiaoColors.SurfaceContainerLow),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        if (favStore.avatarUrl.isNotBlank()) {
+                                            AsyncImage(
+                                                model = favStore.avatarUrl,
+                                                contentDescription = favStore.name,
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier.fillMaxSize(),
+                                            )
+                                        } else {
+                                            Text("🍜", fontSize = 20.sp)
+                                        }
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = favStore.name,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.5.sp,
+                                            color = MiaoColors.OnSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        Text(
+                                            text = favStore.address,
+                                            fontSize = 11.5.sp,
+                                            color = MiaoColors.OnSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.ChevronRight,
+                                        contentDescription = "Mở quán",
+                                        tint = MiaoColors.BrandOrange,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             // 🔒 Section 3: Bảo mật & Cài đặt
             SecuritySection(
@@ -326,9 +428,10 @@ private fun ProfileTopAppBar(
                 }
                 Spacer(modifier = Modifier.width(4.dp))
                 MiaoAnimatedCatLogo(
-                    size = 32.dp,
+                    size = 34.dp,
                     animated = false,
-                    showSquircleBackground = false,
+                    showSquircleBackground = true,
+                    modifier = Modifier.clip(RoundedCornerShape(10.dp)),
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(

@@ -70,7 +70,7 @@ class MainActivity : ComponentActivity() {
                 var homeInitialTab by rememberSaveable { mutableStateOf(0) }
                 var isLoading by rememberSaveable { mutableStateOf(false) }
                 var loadingMessage by rememberSaveable {
-                    mutableStateOf("MiaoSong đang chuẩn bị món ngon cho bạn...")
+                    mutableStateOf("🍜 Tinh hoa ẩm thực Việt ✨")
                 }
                 var loadingDurationMs by rememberSaveable { mutableStateOf(2200L) }
 
@@ -128,7 +128,11 @@ class MainActivity : ComponentActivity() {
                             },
                             onOpenOrderHistory = {
                                 showProfileScreen = false
-                                homeInitialTab = 2
+                                homeInitialTab = 1
+                            },
+                            onOpenFavoriteStore = { storeId ->
+                                showProfileScreen = false
+                                selectedStoreId = storeId
                             },
                         )
                         activeRole == UserRole.MERCHANT -> MerchantDashboardScreen(
@@ -169,8 +173,8 @@ class MainActivity : ComponentActivity() {
                                 activeRole = UserRole.MERCHANT
                             },
                             onTriggerLoadingPreview = {
-                                loadingMessage = "MiaoSong đang chuẩn bị món ngon cho bạn..."
-                                loadingDurationMs = 2000L
+                                loadingMessage = "🍜 Tinh hoa ẩm thực Việt ✨"
+                                loadingDurationMs = 800L
                                 isLoading = true
                             },
                             onOpenOrderTracking = { id ->

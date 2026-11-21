@@ -6,11 +6,12 @@ import { admin, db } from "../../../shared/firebase";
 export const submitReview = onCall(async (request) => {
   try {
     const user = requireAuth(request.auth);
-    const { orderId, stars, tags, comment } = request.data as {
+    const { orderId, stars, tags, comment, imageUrl } = request.data as {
       orderId: string;
       stars: number;
       tags?: string[];
       comment?: string;
+      imageUrl?: string;
     };
 
     if (!Number.isInteger(stars) || stars < 1 || stars > 5) {
@@ -50,6 +51,7 @@ export const submitReview = onCall(async (request) => {
         stars,
         tags: Array.isArray(tags) ? tags.slice(0, 6) : [],
         comment: String(comment ?? "").trim().slice(0, 500),
+        imageUrl: String(imageUrl ?? "").trim().slice(0, 1000),
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
       tx.update(storeRef, { ratingAvg: newAvg, ratingCount: newCount });
