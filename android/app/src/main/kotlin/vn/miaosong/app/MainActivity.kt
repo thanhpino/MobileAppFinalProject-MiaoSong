@@ -70,7 +70,7 @@ class MainActivity : ComponentActivity() {
                 var homeInitialTab by rememberSaveable { mutableStateOf(0) }
                 var isLoading by rememberSaveable { mutableStateOf(false) }
                 var loadingMessage by rememberSaveable {
-                    mutableStateOf("MiaoSong đang chuẩn bị món ngon cho bạn...")
+                    mutableStateOf("Đang tải quán ngon quanh bạn...")
                 }
                 var loadingDurationMs by rememberSaveable { mutableStateOf(2200L) }
 
@@ -173,8 +173,8 @@ class MainActivity : ComponentActivity() {
                                 activeRole = UserRole.MERCHANT
                             },
                             onTriggerLoadingPreview = {
-                                loadingMessage = "MiaoSong đang chuẩn bị món ngon cho bạn..."
-                                loadingDurationMs = 2000L
+                                loadingMessage = "Đang tải quán ngon quanh bạn..."
+                                loadingDurationMs = 800L
                                 isLoading = true
                             },
                             onOpenOrderTracking = { id ->
