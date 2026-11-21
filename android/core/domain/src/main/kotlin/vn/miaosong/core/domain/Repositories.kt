@@ -39,6 +39,7 @@ interface MerchantCatalogRepository {
     suspend fun deleteVoucher(storeId: String, voucherId: String): AppResult<Unit>
     suspend fun updateStoreStatus(storeId: String, status: ManualStoreStatus, busyUntilEpochMs: Long?): AppResult<Unit>
     suspend fun uploadStoreAvatar(storeId: String, imageBytes: ByteArray): AppResult<String>
+    suspend fun uploadMenuItemImage(storeId: String, itemId: String, imageBytes: ByteArray): AppResult<String>
 }
 
 interface CartRepository {

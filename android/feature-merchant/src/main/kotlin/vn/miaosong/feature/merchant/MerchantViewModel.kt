@@ -23,6 +23,7 @@ import javax.inject.Inject
 
 data class MerchantUiState(
     val storeId: String = DEFAULT_MERCHANT_STORE_ID,
+    val isAuthResolved: Boolean = false,
     val currentUser: UserProfile? = null,
     val store: Store? = null,
     val categories: List<MenuCategory> = emptyList(),
@@ -55,6 +56,7 @@ class MerchantViewModel @Inject constructor(
     ) { user, store, categories, items, vouchers ->
         MerchantUiState(
             storeId = user?.storeId ?: storeId,
+            isAuthResolved = true,
             currentUser = user,
             store = store,
             categories = categories,
@@ -148,6 +150,17 @@ class MerchantViewModel @Inject constructor(
             busyState.value = true
             when (val res = catalogRepository.uploadStoreAvatar(uiState.value.storeId, bytes)) {
                 is AppResult.Success -> feedbackState.value = "Đã cập nhật ảnh đại diện quán!"
+                is AppResult.Error -> feedbackState.value = res.message
+            }
+            busyState.value = false
+        }
+    }
+
+    fun uploadMenuItemImage(itemId: String, bytes: ByteArray) {
+        viewModelScope.launch {
+            busyState.value = true
+            when (val res = catalogRepository.uploadMenuItemImage(uiState.value.storeId, itemId, bytes)) {
+                is AppResult.Success -> feedbackState.value = "Đã cập nhật ảnh món ăn!"
                 is AppResult.Error -> feedbackState.value = res.message
             }
             busyState.value = false

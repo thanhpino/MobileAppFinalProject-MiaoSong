@@ -138,7 +138,7 @@ class MerchantCatalogRepositoryImpl @Inject constructor(
 
     override suspend fun uploadStoreAvatar(storeId: String, imageBytes: ByteArray): AppResult<String> {
         return try {
-            val optimizedBytes = compressAvatarIfNeeded(imageBytes)
+            val optimizedBytes = compressImageIfNeeded(imageBytes)
             val ref = storage.reference.child("stores/$storeId/avatar.jpg")
             val metadata = StorageMetadata.Builder()
                 .setContentType("image/jpeg")
@@ -155,7 +155,30 @@ class MerchantCatalogRepositoryImpl @Inject constructor(
         }
     }
 
-    private fun compressAvatarIfNeeded(rawBytes: ByteArray): ByteArray {
+    override suspend fun uploadMenuItemImage(
+        storeId: String,
+        itemId: String,
+        imageBytes: ByteArray,
+    ): AppResult<String> {
+        return try {
+            val optimizedBytes = compressImageIfNeeded(imageBytes)
+            val ref = storage.reference.child("stores/$storeId/items/$itemId.jpg")
+            val metadata = StorageMetadata.Builder()
+                .setContentType("image/jpeg")
+                .build()
+            ref.putBytes(optimizedBytes, metadata).await()
+            val url = ref.downloadUrl.await().toString()
+            storeDoc(storeId).collection("menuItems").document(itemId).update("imageUrl", url).await()
+            AppResult.Success(url)
+        } catch (e: Exception) {
+            AppResult.Error(
+                code = "UPLOAD_FAILED",
+                message = e.localizedMessage ?: "Tải ảnh món ăn thất bại (hãy đăng nhập tài khoản Quán).",
+            )
+        }
+    }
+
+    private fun compressImageIfNeeded(rawBytes: ByteArray): ByteArray {
         val decoded = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size) ?: return rawBytes
         val maxDim = 800
         val longestSide = max(decoded.width, decoded.height)

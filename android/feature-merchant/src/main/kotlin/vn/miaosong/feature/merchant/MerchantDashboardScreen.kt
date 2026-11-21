@@ -40,7 +40,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -111,6 +110,16 @@ fun MerchantDashboardScreen(
     var showAddItemDialog by remember { mutableStateOf(false) }
     var showAddVoucherDialog by remember { mutableStateOf(false) }
     var showLoginDialog by remember { mutableStateOf(false) }
+    var hasAutoPromptedLogin by rememberSaveable { mutableStateOf(false) }
+
+    val isMerchantAuthenticated = uiState.currentUser?.role == UserRole.MERCHANT
+
+    LaunchedEffect(uiState.isAuthResolved, isMerchantAuthenticated) {
+        if (uiState.isAuthResolved && !isMerchantAuthenticated && !hasAutoPromptedLogin) {
+            hasAutoPromptedLogin = true
+            showLoginDialog = true
+        }
+    }
 
     LaunchedEffect(uiState.feedbackMessage) {
         val msg = uiState.feedbackMessage
@@ -119,8 +128,6 @@ fun MerchantDashboardScreen(
             viewModel.clearFeedback()
         }
     }
-
-    val isMerchantAuthenticated = uiState.currentUser?.role == UserRole.MERCHANT
 
     Scaffold(
         containerColor = MiaoColors.SurfaceCanvas,
@@ -133,26 +140,6 @@ fun MerchantDashboardScreen(
                 onSignInClick = { showLoginDialog = true },
                 onSwitchToCustomer = onSwitchToCustomerPreview,
             )
-        },
-        floatingActionButton = {
-            when (selectedTab) {
-                0 -> FloatingActionButton(
-                    onClick = { showAddItemDialog = true },
-                    containerColor = MiaoColors.BrandOrange,
-                    contentColor = Color.White,
-                    shape = CircleShape,
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Thêm món")
-                }
-                1 -> FloatingActionButton(
-                    onClick = { showAddVoucherDialog = true },
-                    containerColor = MiaoColors.BrandOrange,
-                    contentColor = Color.White,
-                    shape = CircleShape,
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Tạo voucher")
-                }
-            }
         },
         bottomBar = {
             NavigationBar(containerColor = Color.White, tonalElevation = 8.dp) {
@@ -191,20 +178,19 @@ fun MerchantDashboardScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            if (!isMerchantAuthenticated) {
-                MerchantAuthBanner(onClick = { showLoginDialog = true })
-            }
-
             when (selectedTab) {
                 0 -> MerchantMenuTab(
                     categories = uiState.categories,
                     items = uiState.menuItems,
                     onAddCategoryClick = { showAddCategoryDialog = true },
+                    onAddItemClick = { showAddItemDialog = true },
                     onToggleAvailability = viewModel::toggleItemAvailability,
                     onDeleteItem = viewModel::deleteMenuItem,
+                    onUploadItemImage = viewModel::uploadMenuItemImage,
                 )
                 1 -> MerchantVoucherTab(
                     vouchers = uiState.vouchers,
+                    onAddVoucherClick = { showAddVoucherDialog = true },
                     onToggleActive = viewModel::toggleVoucherActive,
                     onDelete = viewModel::deleteVoucher,
                 )
@@ -357,31 +343,30 @@ private fun MerchantTopHeader(
 }
 
 @Composable
-private fun MerchantAuthBanner(onClick: () -> Unit) {
-    Surface(
-        color = Color(0xFFFFF3CD),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
-    ) {
-        Text(
-            text = "🔑 Chạm vào đây để đăng nhập tài khoản Quán (tt3145539@gmail.com) để lưu Thực đơn, Voucher & tải Avatar lên Firebase!",
-            color = MiaoColors.OnSurface,
-            fontSize = 11.5.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        )
-    }
-}
-
-@Composable
 private fun MerchantMenuTab(
     categories: List<MenuCategory>,
     items: List<MenuItem>,
     onAddCategoryClick: () -> Unit,
+    onAddItemClick: () -> Unit,
     onToggleAvailability: (String, Boolean) -> Unit,
     onDeleteItem: (String) -> Unit,
+    onUploadItemImage: (String, ByteArray) -> Unit,
 ) {
+    val context = LocalContext.current
+    var pendingImageItemId by remember { mutableStateOf<String?>(null) }
+    val itemPhotoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        val targetId = pendingImageItemId
+        if (uri != null && targetId != null) {
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            if (bytes != null && bytes.isNotEmpty()) {
+                onUploadItemImage(targetId, bytes)
+            }
+        }
+        pendingImageItemId = null
+    }
+
     var selectedCategoryId by remember { mutableStateOf<String?>(null) }
     val filteredItems = if (selectedCategoryId == null) {
         items
@@ -389,73 +374,184 @@ private fun MerchantMenuTab(
         items.filter { it.categoryId == selectedCategoryId }
     }
 
+    val categoryNameMap = remember(categories) { categories.associate { it.id to it.name } }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     text = "Nhóm thực đơn (${categories.size})",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MiaoColors.OnSurface,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MiaoColors.OnSurfaceVariant,
                 )
-                TextButton(onClick = onAddCategoryClick) {
-                    Text("+ Thêm nhóm", color = MiaoColors.BrandOrange, fontWeight = FontWeight.Bold)
-                }
-            }
 
-            Row(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                FilterChip(
-                    selected = selectedCategoryId == null,
-                    onClick = { selectedCategoryId = null },
-                    label = { Text("Tất cả (${items.size})") },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MiaoColors.BrandOrange,
-                        selectedLabelColor = Color.White,
-                    ),
-                )
-                categories.forEach { cat ->
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     FilterChip(
-                        selected = selectedCategoryId == cat.id,
-                        onClick = { selectedCategoryId = cat.id },
-                        label = { Text(cat.name) },
+                        selected = selectedCategoryId == null,
+                        onClick = { selectedCategoryId = null },
+                        label = { Text("Tất cả (${items.size})") },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MiaoColors.BrandOrange,
                             selectedLabelColor = Color.White,
                         ),
                     )
+                    categories.forEach { cat ->
+                        FilterChip(
+                            selected = selectedCategoryId == cat.id,
+                            onClick = { selectedCategoryId = cat.id },
+                            label = { Text(cat.name) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MiaoColors.BrandOrange,
+                                selectedLabelColor = Color.White,
+                            ),
+                        )
+                    }
+                    Surface(
+                        color = MiaoColors.SurfaceContainerLow,
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.4f)),
+                        modifier = Modifier.clickable { onAddCategoryClick() },
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "Thêm nhóm",
+                                tint = MiaoColors.BrandOrange,
+                                modifier = Modifier.size(15.dp),
+                            )
+                            Text(
+                                text = "Nhóm",
+                                color = MiaoColors.BrandOrange,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Danh sách món (${filteredItems.size})",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MiaoColors.OnSurface,
+                    )
+                    Surface(
+                        color = MiaoColors.BrandOrange,
+                        shape = RoundedCornerShape(999.dp),
+                        modifier = Modifier.clickable { onAddItemClick() },
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Text(
+                                text = "Thêm món",
+                                color = Color.White,
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
                 }
             }
         }
 
         items(filteredItems, key = { it.id }) { item ->
+            val catName = categoryNameMap[item.categoryId] ?: ""
+            val fallbackEmoji = when {
+                catName.contains("uống", ignoreCase = true) || catName.contains("nước", ignoreCase = true) -> "🧋"
+                catName.contains("phụ", ignoreCase = true) || catName.contains("kèm", ignoreCase = true) -> "🥢"
+                else -> "🍜"
+            }
+
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.12f)),
             ) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
+                        // Ảnh món ăn (chạm để tải / đổi ảnh cho món chính, món phụ, nước uống)
+                        Box(
+                            modifier = Modifier
+                                .size(68.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MiaoColors.SurfaceContainerLow)
+                                .clickable {
+                                    pendingImageItemId = item.id
+                                    itemPhotoPicker.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                                    )
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (item.imageUrl.isNotBlank()) {
+                                AsyncImage(
+                                    model = item.imageUrl,
+                                    contentDescription = item.name,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            } else {
+                                Text(text = fallbackEmoji, fontSize = 28.sp)
+                            }
+                            Surface(
+                                color = Color.Black.copy(alpha = 0.55f),
+                                shape = CircleShape,
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(3.dp)
+                                    .size(22.dp),
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.CameraAlt,
+                                        contentDescription = "Đổi ảnh món",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(12.dp),
+                                    )
+                                }
+                            }
+                        }
+
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
                                 text = item.name,
                                 color = MiaoColors.OnSurface,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
                             Text(
                                 text = MoneyFormatter.formatVnd(item.basePrice),
@@ -463,27 +559,41 @@ private fun MerchantMenuTab(
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.ExtraBold,
                             )
+                            if (catName.isNotBlank()) {
+                                Text(
+                                    text = catName,
+                                    color = MiaoColors.OnSurfaceVariant,
+                                    fontSize = 11.sp,
+                                )
+                            }
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+
+                        Column(horizontalAlignment = Alignment.End) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Switch(
+                                    checked = item.isAvailable,
+                                    onCheckedChange = { onToggleAvailability(item.id, it) },
+                                    colors = SwitchDefaults.colors(checkedTrackColor = MiaoColors.SecondaryTealBright),
+                                )
+                                IconButton(
+                                    onClick = { onDeleteItem(item.id) },
+                                    modifier = Modifier.size(34.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.DeleteOutline,
+                                        contentDescription = "Xóa món",
+                                        tint = MiaoColors.OnSurfaceVariant,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
+                            }
                             Text(
                                 text = if (item.isAvailable) "Còn hàng" else "Hết hàng",
                                 color = if (item.isAvailable) MiaoColors.SecondaryTeal else MiaoColors.Error,
-                                fontSize = 11.sp,
+                                fontSize = 10.5.sp,
                                 fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(end = 6.dp),
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Switch(
-                                checked = item.isAvailable,
-                                onCheckedChange = { onToggleAvailability(item.id, it) },
-                                colors = SwitchDefaults.colors(checkedTrackColor = MiaoColors.SecondaryTealBright),
-                            )
-                            IconButton(onClick = { onDeleteItem(item.id) }) {
-                                Icon(
-                                    imageVector = Icons.Default.DeleteOutline,
-                                    contentDescription = "Xóa món",
-                                    tint = MiaoColors.OnSurfaceVariant,
-                                )
-                            }
                         }
                     }
 
@@ -531,6 +641,7 @@ private fun MerchantMenuTab(
 @Composable
 private fun MerchantVoucherTab(
     vouchers: List<Voucher>,
+    onAddVoucherClick: () -> Unit,
     onToggleActive: (String, Boolean) -> Unit,
     onDelete: (String) -> Unit,
 ) {
@@ -540,16 +651,48 @@ private fun MerchantVoucherTab(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Text(
-                text = "Mã khuyến mãi của quán (${vouchers.size})",
-                style = MaterialTheme.typography.headlineSmall,
-                color = MiaoColors.OnSurface,
-            )
-            Text(
-                text = "Voucher chỉ giảm trên tiền món & món thêm, không trừ vào phí giao hàng.",
-                color = MiaoColors.OnSurfaceVariant,
-                fontSize = 12.sp,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Mã khuyến mãi (${vouchers.size})",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MiaoColors.OnSurface,
+                    )
+                    Surface(
+                        color = MiaoColors.BrandOrange,
+                        shape = RoundedCornerShape(999.dp),
+                        modifier = Modifier.clickable { onAddVoucherClick() },
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Text(
+                                text = "Tạo mã",
+                                color = Color.White,
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+                }
+                Text(
+                    text = "Voucher chỉ giảm trên tiền món & món thêm, không trừ vào phí giao hàng.",
+                    color = MiaoColors.OnSurfaceVariant,
+                    fontSize = 12.sp,
+                )
+            }
         }
 
         items(vouchers, key = { it.id }) { v ->
@@ -822,13 +965,22 @@ private fun AddCategoryDialog(
     var name by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Thêm nhóm thực đơn") },
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.White,
+        title = {
+            Text(
+                text = "Thêm nhóm thực đơn",
+                fontWeight = FontWeight.Bold,
+                color = MiaoColors.OnSurface,
+            )
+        },
         text = {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
                 label = { Text("Tên nhóm (VD: Món chính, Thức uống)") },
                 singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
             )
         },
         confirmButton = {
@@ -855,35 +1007,87 @@ private fun AddMenuItemDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Thêm món mới") },
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.White,
+        title = {
+            Text(
+                text = "Thêm món mới",
+                fontWeight = FontWeight.Bold,
+                color = MiaoColors.OnSurface,
+            )
+        },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                if (categories.isNotEmpty()) {
+                    Text(
+                        text = "Chọn nhóm thực đơn",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MiaoColors.OnSurfaceVariant,
+                    )
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        categories.forEach { cat ->
+                            FilterChip(
+                                selected = selectedCatId == cat.id,
+                                onClick = { selectedCatId = cat.id },
+                                label = { Text(cat.name, maxLines = 1) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MiaoColors.BrandOrange,
+                                    selectedLabelColor = Color.White,
+                                ),
+                            )
+                        }
+                    }
+                }
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("Tên món ăn") },
                     singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = priceStr,
                     onValueChange = { priceStr = it.filter(Char::isDigit) },
                     label = { Text("Giá cơ bản (VNĐ)") },
                     singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
                     label = { Text("Mô tả ngắn") },
                     maxLines = 2,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Gắn sẵn Size (SINGLE) & Topping (MULTI)", fontSize = 12.sp)
-                    Switch(checked = includeDefaultOptions, onCheckedChange = { includeDefaultOptions = it })
+                    Text(
+                        text = "Gắn sẵn Size & Topping",
+                        fontSize = 13.sp,
+                        color = MiaoColors.OnSurface,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(
+                        checked = includeDefaultOptions,
+                        onCheckedChange = { includeDefaultOptions = it },
+                        colors = SwitchDefaults.colors(checkedTrackColor = MiaoColors.BrandOrange),
+                    )
                 }
+                Text(
+                    text = "💡 Sau khi lưu món, chạm vào ảnh món ở danh sách để tải hình thật từ thư viện.",
+                    fontSize = 11.5.sp,
+                    color = MiaoColors.OnSurfaceVariant,
+                )
             }
         },
         confirmButton = {
@@ -954,25 +1158,45 @@ private fun AddVoucherDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Tạo mã khuyến mãi (Voucher)") },
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.White,
+        title = {
+            Text(
+                text = "Tạo mã khuyến mãi",
+                fontWeight = FontWeight.Bold,
+                color = MiaoColors.OnSurface,
+            )
+        },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 OutlinedTextField(
                     value = code,
                     onValueChange = { code = it.uppercase() },
                     label = { Text("Mã voucher (VD: MIAO15)") },
                     singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = isPercent,
                         onClick = { isPercent = true },
-                        label = { Text("Theo phần trăm (%)") },
+                        label = { Text("Giảm theo %", maxLines = 1) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MiaoColors.SecondaryContainer,
+                            selectedLabelColor = MiaoColors.OnSecondaryContainer,
+                        ),
                     )
                     FilterChip(
                         selected = !isPercent,
                         onClick = { isPercent = false },
-                        label = { Text("Tiền cố định (đ)") },
+                        label = { Text("Giảm tiền (đ)", maxLines = 1) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MiaoColors.SecondaryContainer,
+                            selectedLabelColor = MiaoColors.OnSecondaryContainer,
+                        ),
                     )
                 }
                 OutlinedTextField(
@@ -980,6 +1204,7 @@ private fun AddVoucherDialog(
                     onValueChange = { valueStr = it.filter(Char::isDigit) },
                     label = { Text(if (isPercent) "Phần trăm giảm (%)" else "Số tiền giảm (VNĐ)") },
                     singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 if (isPercent) {
                     OutlinedTextField(
@@ -987,6 +1212,7 @@ private fun AddVoucherDialog(
                         onValueChange = { maxDiscountStr = it.filter(Char::isDigit) },
                         label = { Text("Giảm tối đa (VNĐ)") },
                         singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
                 OutlinedTextField(
@@ -994,12 +1220,14 @@ private fun AddVoucherDialog(
                     onValueChange = { minOrderStr = it.filter(Char::isDigit) },
                     label = { Text("Đơn tối thiểu (VNĐ)") },
                     singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = usageLimitStr,
                     onValueChange = { usageLimitStr = it.filter(Char::isDigit) },
                     label = { Text("Tổng số lượng mã tối đa") },
                     singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         },
@@ -1041,14 +1269,28 @@ private fun MerchantLoginDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Đăng nhập tài khoản Quán") },
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.White,
+        title = {
+            Text(
+                text = "Đăng nhập tài khoản Quán",
+                fontWeight = FontWeight.Bold,
+                color = MiaoColors.OnSurface,
+            )
+        },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "Đăng nhập để quản lý thực đơn, tạo voucher và tải ảnh quán / ảnh món ăn lên hệ thống.",
+                    fontSize = 12.5.sp,
+                    color = MiaoColors.OnSurfaceVariant,
+                )
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
                     label = { Text("Email quán") },
                     singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = password,
@@ -1056,6 +1298,7 @@ private fun MerchantLoginDialog(
                     label = { Text("Mật khẩu") },
                     visualTransformation = PasswordVisualTransformation(),
                     singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         },
@@ -1065,6 +1308,6 @@ private fun MerchantLoginDialog(
                 onClick = { onLogin(email, password) },
             ) { Text("Đăng nhập", color = MiaoColors.BrandOrange, fontWeight = FontWeight.Bold) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Hủy") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Để sau") } },
     )
 }
