@@ -9,6 +9,7 @@ import vn.miaosong.core.model.ManualStoreStatus
 import vn.miaosong.core.model.MenuCategory
 import vn.miaosong.core.model.MenuItem
 import vn.miaosong.core.model.Order
+import vn.miaosong.core.model.OrderStatus
 import vn.miaosong.core.model.PaymentMethod
 import vn.miaosong.core.model.Store
 import vn.miaosong.core.model.UserProfile
