@@ -86,6 +86,14 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                LaunchedEffect(activeRole) {
+                    if (activeRole == UserRole.MERCHANT) {
+                        MerchantOrderMonitorService.start(this@MainActivity)
+                    } else {
+                        MerchantOrderMonitorService.stop(this@MainActivity)
+                    }
+                }
+
                 LaunchedEffect(isLoading, loadingMessage) {
                     if (isLoading) {
                         delay(loadingDurationMs)
@@ -141,9 +149,10 @@ class MainActivity : ComponentActivity() {
                         showCartScreen -> CartScreen(
                             onBack = { showCartScreen = false },
                             onAddMore = { showCartScreen = false },
-                            onOrderSuccess = {
+                            onOrderSuccess = { order ->
                                 showCartScreen = false
                                 selectedStoreId = null
+                                trackingOrderId = order.id
                                 showOrderTracking = true
                             },
                         )

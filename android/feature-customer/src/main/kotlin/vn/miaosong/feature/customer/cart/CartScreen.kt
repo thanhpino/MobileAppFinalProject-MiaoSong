@@ -1,6 +1,12 @@
 package vn.miaosong.feature.customer.cart
 
+import android.net.Uri
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.platform.LocalContext
+import vn.miaosong.core.model.VoucherType
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -106,8 +112,23 @@ fun CartScreen(
     onOrderSuccess: (Order) -> Unit,
     viewModel: CartViewModel = hiltViewModel(),
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var isAddressPickerVisible by remember { mutableStateOf(false) }
+
+    val handleOrderPlaced: (Order) -> Unit = { order ->
+        // Mở Chrome Custom Tab khi thanh toán ZaloPay Sandbox có paymentUrl
+        val payUrl = order.payment.paymentUrl
+        if (order.payment.method == PaymentMethod.ZALOPAY && !payUrl.isNullOrBlank()) {
+            runCatching {
+                CustomTabsIntent.Builder()
+                    .setShowTitle(true)
+                    .build()
+                    .launchUrl(context, Uri.parse(payUrl))
+            }
+        }
+        onOrderSuccess(order)
+    }
 
     // Tự động tắt Toast thông báo sau 2.5s
     LaunchedEffect(uiState.toastMessage) {
@@ -127,7 +148,7 @@ fun CartScreen(
                 CartBottomCheckoutBar(
                     breakdown = uiState.breakdown,
                     isPlacingOrder = uiState.isPlacingOrder,
-                    onPlaceOrder = { viewModel.placeOrder(onOrderSuccess) },
+                    onPlaceOrder = { viewModel.placeOrder(handleOrderPlaced) },
                 )
             }
         },
@@ -146,16 +167,22 @@ fun CartScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
+                    val storeName = uiState.store?.name ?: "Bún Riêu Cô Ba"
+                    val distanceText = uiState.deliveryQuote?.distanceKm?.let {
+                        String.format(" • %.1f km", it)
+                    }.orEmpty()
+                    val storeAddress = (uiState.store?.address ?: "420 Nguyễn Thị Thập, Q.7, TP.HCM") + distanceText
+
                     // 1. Store Header & Badge tự động tách dòng
                     item {
-                        StoreCartBadgeHeader(storeName = "Bún Bò Huế Cô Ba")
+                        StoreCartBadgeHeader(storeName = storeName)
                     }
 
                     // 2. Thẻ thông tin quán
                     item {
                         StoreInfoCard(
-                            storeName = "Bún Bò Huế Cô Ba",
-                            address = "Ngõ 42 Tràng Tiền, Hoàn Kiếm • 1.2km",
+                            storeName = storeName,
+                            address = storeAddress,
                         )
                     }
 
@@ -203,11 +230,13 @@ fun CartScreen(
                         }
                     }
 
-                    // 5. Thẻ Ưu đãi & Voucher
+                    // 5. Thẻ Ưu đãi & Voucher thật từ Firestore của quán
                     item {
-                        VoucherAppliedCard(
-                            voucher = uiState.selectedVoucher,
-                            onToggleVoucher = { viewModel.toggleVoucher("COBA25") },
+                        StoreVouchersSection(
+                            vouchers = uiState.availableVouchers,
+                            selectedVoucher = uiState.selectedVoucher,
+                            subtotal = uiState.breakdown.subtotal,
+                            onSelectVoucher = { code -> viewModel.toggleVoucher(code) },
                         )
                     }
 
@@ -227,11 +256,14 @@ fun CartScreen(
                         )
                     }
 
-                    // 8. Bảng kê chi tiết thanh toán
+                    // 8. Bảng kê chi tiết thanh toán (Phí ship Lalamove thật & Voucher thật)
                     item {
                         PaymentBreakdownCard(
                             breakdown = uiState.breakdown,
                             itemCount = uiState.cartLines.sumOf { it.quantity },
+                            voucherCode = uiState.selectedVoucher?.code,
+                            distanceKm = uiState.deliveryQuote?.distanceKm,
+                            isQuotingDelivery = uiState.isQuotingDelivery,
                         )
                     }
 
@@ -687,6 +719,96 @@ private fun CartLineCard(
 }
 
 @Composable
+private fun StoreVouchersSection(
+    vouchers: List<Voucher>,
+    selectedVoucher: Voucher?,
+    subtotal: Long,
+    onSelectVoucher: (String) -> Unit,
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.08f)),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ConfirmationNumber,
+                    contentDescription = null,
+                    tint = MiaoColors.BrandOrange,
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(
+                    text = "Ưu đãi & Mã giảm giá của quán (${vouchers.size})",
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MiaoColors.OnSurface,
+                )
+            }
+            if (vouchers.isEmpty()) {
+                Text(
+                    text = "Quán hiện chưa có mã khuyến mãi đang hoạt động.",
+                    fontSize = 12.sp,
+                    color = MiaoColors.OnSurfaceVariant,
+                )
+            } else {
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    vouchers.forEach { v ->
+                        val isSelected = selectedVoucher?.code.equals(v.code, ignoreCase = true)
+                        val eligible = subtotal >= v.minOrder
+                        val desc = if (v.type == VoucherType.PERCENT) {
+                            "Giảm ${v.value}%"
+                        } else {
+                            "Giảm ${formatVnd(v.value)}"
+                        }
+                        Surface(
+                            color = if (isSelected) MiaoColors.BrandOrange else MiaoColors.SurfaceContainerLow,
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(
+                                1.dp,
+                                if (isSelected) MiaoColors.BrandOrange else MiaoColors.BrandOrange.copy(alpha = 0.25f),
+                            ),
+                            modifier = Modifier.clickable(enabled = eligible) { onSelectVoucher(v.code) },
+                        ) {
+                            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                                Text(
+                                    text = "${v.code} · $desc",
+                                    color = if (isSelected) Color.White else MiaoColors.BrandOrangeDark,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                )
+                                Text(
+                                    text = if (eligible) {
+                                        if (isSelected) "Đang áp dụng" else "Chạm để dùng"
+                                    } else {
+                                        "Đơn từ ${formatVnd(v.minOrder)}"
+                                    },
+                                    color = if (isSelected) Color.White.copy(alpha = 0.9f) else MiaoColors.OnSurfaceVariant,
+                                    fontSize = 10.5.sp,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun VoucherAppliedCard(
     voucher: Voucher?,
     onToggleVoucher: () -> Unit,
@@ -927,7 +1049,13 @@ private fun PaymentMethodCard(
 }
 
 @Composable
-private fun PaymentBreakdownCard(breakdown: PriceBreakdown, itemCount: Int) {
+private fun PaymentBreakdownCard(
+    breakdown: PriceBreakdown,
+    itemCount: Int,
+    voucherCode: String? = null,
+    distanceKm: Double? = null,
+    isQuotingDelivery: Boolean = false,
+) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -967,25 +1095,18 @@ private fun PaymentBreakdownCard(breakdown: PriceBreakdown, itemCount: Int) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
+                val distLabel = distanceKm?.let { String.format(" (%.1f km · Lalamove)", it) }.orEmpty()
                 Text(
-                    text = "Phí giao hàng",
+                    text = "Phí giao hàng$distLabel",
                     fontSize = 12.5.sp,
                     color = MiaoColors.OnSurfaceVariant,
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = "16.000đ",
-                        fontSize = 12.sp,
-                        color = MiaoColors.OnSurfaceVariant.copy(alpha = 0.6f),
-                        textDecoration = TextDecoration.LineThrough,
-                    )
-                    Text(
-                        text = "0đ",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MiaoColors.SecondaryTeal,
-                    )
-                }
+                Text(
+                    text = if (isQuotingDelivery) "Đang báo giá..." else formatVnd(breakdown.shippingFee),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MiaoColors.OnSurface,
+                )
             }
 
             if (breakdown.discount > 0) {
@@ -994,7 +1115,7 @@ private fun PaymentBreakdownCard(breakdown: PriceBreakdown, itemCount: Int) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
-                        text = "Voucher giảm giá (COBA25)",
+                        text = "Voucher giảm giá (${voucherCode ?: "Ưu đãi"})",
                         fontSize = 12.5.sp,
                         color = MiaoColors.OnSurfaceVariant,
                     )
@@ -1027,7 +1148,7 @@ private fun PaymentBreakdownCard(breakdown: PriceBreakdown, itemCount: Int) {
                     )
                     if (breakdown.discount > 0) {
                         Text(
-                            text = "Tiết kiệm được ${formatVnd(breakdown.discount + 16_000L)}",
+                            text = "Tiết kiệm được ${formatVnd(breakdown.discount)}",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = MiaoColors.SecondaryTeal,
@@ -1093,7 +1214,7 @@ private fun CartBottomCheckoutBar(
                             modifier = Modifier.size(13.dp),
                         )
                         Text(
-                            text = "Đã tiết kiệm ${formatVnd(breakdown.discount + 16_000L)}",
+                            text = "Đã tiết kiệm ${formatVnd(breakdown.discount)}",
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = MiaoColors.SecondaryTeal,
