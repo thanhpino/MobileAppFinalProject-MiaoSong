@@ -263,3 +263,23 @@ data class Review(
     val comment: String = "",
     val createdAtEpochMs: Long = 0L,
 )
+
+@Serializable
+enum class NotificationType {
+    ORDER_STATUS,
+    PROMOTION,
+    SYSTEM,
+}
+
+@Serializable
+data class NotificationItem(
+    val id: String,
+    val title: String,
+    val body: String,
+    val timestampEpochMs: Long = 0L,
+    val type: NotificationType = NotificationType.ORDER_STATUS,
+    val orderId: String? = null,
+    val deepLink: String? = null,
+    val isRead: Boolean = false,
+)
+

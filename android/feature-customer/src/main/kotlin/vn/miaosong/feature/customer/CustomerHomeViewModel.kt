@@ -19,8 +19,13 @@ import kotlinx.coroutines.launch
 import vn.miaosong.core.common.AppResult
 import vn.miaosong.core.domain.AddressRepository
 import vn.miaosong.core.domain.AuthRepository
+import vn.miaosong.core.domain.OrderRepository
 import vn.miaosong.core.domain.StoreRepository
 import vn.miaosong.core.model.DeliveryAddress
+import vn.miaosong.core.model.NotificationItem
+import vn.miaosong.core.model.NotificationType
+import vn.miaosong.core.model.Order
+import vn.miaosong.core.model.OrderStatus
 import vn.miaosong.core.model.Store
 import java.text.Normalizer
 import java.util.regex.Pattern
@@ -54,7 +59,26 @@ data class CustomerHomeUiState(
     val addresses: List<DeliveryAddress> = listOf(DEFAULT_CUSTOMER_ADDRESS),
     val selectedAddress: DeliveryAddress = DEFAULT_CUSTOMER_ADDRESS,
     val isAddressPickerVisible: Boolean = false,
+    val activeOngoingOrder: Order? = null,
+    val notifications: List<NotificationItem> = emptyList(),
+    val unreadNotificationCount: Int = 0,
+    val hasClaimedPromoBanner: Boolean = false,
+    val toastFeedback: String? = null,
     val errorMessage: String? = null,
+)
+
+private data class OrderNotifPromoState(
+    val activeOngoingOrder: Order? = null,
+    val notifications: List<NotificationItem> = emptyList(),
+    val unreadCount: Int = 0,
+    val hasClaimedPromo: Boolean = false,
+    val toastFeedback: String? = null,
+)
+
+private data class HomeFilterState(
+    val query: String = "",
+    val category: String? = null,
+    val filter: StoreSortFilter = StoreSortFilter.NEARBY,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -63,6 +87,7 @@ class CustomerHomeViewModel @Inject constructor(
     private val storeRepository: StoreRepository,
     private val addressRepository: AddressRepository,
     private val authRepository: AuthRepository,
+    private val orderRepository: OrderRepository,
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
@@ -70,6 +95,108 @@ class CustomerHomeViewModel @Inject constructor(
     private val _activeFilter = MutableStateFlow(StoreSortFilter.NEARBY)
     private val _selectedAddressId = MutableStateFlow<String?>(null)
     private val _isAddressPickerVisible = MutableStateFlow(false)
+    private val _readNotificationIds = MutableStateFlow<Set<String>>(emptySet())
+    private val _hasClaimedPromo = MutableStateFlow(false)
+    private val _toastFeedback = MutableStateFlow<String?>(null)
+
+    private val activeOrderStatuses = setOf(
+        OrderStatus.PENDING_PAYMENT,
+        OrderStatus.PLACED,
+        OrderStatus.CONFIRMED,
+        OrderStatus.READY,
+        OrderStatus.FINDING_DRIVER,
+        OrderStatus.DRIVER_ASSIGNED,
+        OrderStatus.ARRIVED_AT_STORE,
+        OrderStatus.PICKED_UP,
+        OrderStatus.DELIVERING,
+    )
+
+    // Quan sát đơn hàng của khách hàng realtime
+    private val _customerOrdersFlow = authRepository.observeCurrentUser().flatMapLatest { user ->
+        if (user != null && user.uid.isNotBlank()) {
+            orderRepository.observeCustomerOrders(user.uid)
+        } else {
+            flowOf(emptyList())
+        }
+    }
+
+    private val _notifAndPromoState = combine(
+        _customerOrdersFlow,
+        _readNotificationIds,
+        _hasClaimedPromo,
+        _toastFeedback,
+    ) { orders, readIds, hasClaimed, toast ->
+        val activeOrder = orders.firstOrNull { it.status in activeOrderStatuses }
+
+        val orderNotifs = orders.take(5).map { order ->
+            val title = when (order.status) {
+                OrderStatus.CONFIRMED -> "Quán đã nhận đơn #${order.code}"
+                OrderStatus.FINDING_DRIVER -> "Đang tìm tài xế · #${order.code}"
+                OrderStatus.DRIVER_ASSIGNED -> "Đã có tài xế nhận đơn · #${order.code}"
+                OrderStatus.ARRIVED_AT_STORE -> "Tài xế đã tới quán · #${order.code}"
+                OrderStatus.PICKED_UP -> "Tài xế đã lấy món · #${order.code}"
+                OrderStatus.DELIVERING -> "Đang giao tới bạn · #${order.code}"
+                OrderStatus.COMPLETED -> "Giao hàng thành công! · #${order.code}"
+                OrderStatus.REJECTED -> "Đơn #${order.code} bị từ chối"
+                else -> "Cập nhật đơn hàng #${order.code}"
+            }
+            val body = when (order.status) {
+                OrderStatus.CONFIRMED -> "Quán đang chuẩn bị món cho bạn nè 🍲"
+                OrderStatus.FINDING_DRIVER -> "Quán đã đóng gói xong và đang gọi tài xế Lalamove 🛵"
+                OrderStatus.DRIVER_ASSIGNED -> {
+                    val d = order.delivery.driver
+                    if (d != null) "Tài xế ${d.name} (${d.plate}) đang tới quán lấy món."
+                    else "Tài xế đang trên đường tới quán lấy món cho bạn."
+                }
+                OrderStatus.ARRIVED_AT_STORE -> "Tài xế đang nhận món tại quán."
+                OrderStatus.PICKED_UP -> "Món nóng hổi đang trên đường tới bạn 🛵"
+                OrderStatus.DELIVERING -> "Chú ý điện thoại nhé, tài xế sắp tới rồi!"
+                OrderStatus.COMPLETED -> "Chúc bạn ngon miệng! Đánh giá cho quán nhé ⭐"
+                OrderStatus.REJECTED -> "Quán xin lỗi, đơn bị từ chối vì ${order.rejectReason ?: "hết nguyên liệu"}."
+                else -> "Đơn hàng của bạn đang được xử lý."
+            }
+            val notifId = "order_${order.id}_${order.status.name}"
+            NotificationItem(
+                id = notifId,
+                title = title,
+                body = body,
+                timestampEpochMs = order.createdAtEpochMs,
+                type = NotificationType.ORDER_STATUS,
+                orderId = order.id,
+                isRead = readIds.contains(notifId),
+            )
+        }
+
+        val promoNotifs = listOf(
+            NotificationItem(
+                id = "promo_coba25",
+                title = "🎁 Ưu đãi bạn mới COBA25",
+                body = "Tặng mã giảm 25.000đ cho đơn hàng từ 60.000đ khi đặt món tại MiaoSong!",
+                timestampEpochMs = System.currentTimeMillis() - 3600_000L,
+                type = NotificationType.PROMOTION,
+                isRead = readIds.contains("promo_coba25"),
+            ),
+            NotificationItem(
+                id = "promo_lalamove",
+                title = "⚡ Cam kết giao nhanh 20 phút",
+                body = "Giao hàng thần tốc cùng đối tác Lalamove. Trễ giờ đền ngay 50.000đ!",
+                timestampEpochMs = System.currentTimeMillis() - 7200_000L,
+                type = NotificationType.SYSTEM,
+                isRead = readIds.contains("promo_lalamove"),
+            ),
+        )
+
+        val allNotifs = (orderNotifs + promoNotifs).sortedByDescending { it.timestampEpochMs }
+        val unreadCount = allNotifs.count { !it.isRead }
+
+        OrderNotifPromoState(
+            activeOngoingOrder = activeOrder,
+            notifications = allNotifs,
+            unreadCount = unreadCount,
+            hasClaimedPromo = hasClaimed,
+            toastFeedback = toast,
+        )
+    }
 
     // Quan sát luồng địa chỉ người dùng realtime
     private val _userAddressesFlow = authRepository.observeCurrentUser().flatMapLatest { user ->
@@ -98,14 +225,24 @@ class CustomerHomeViewModel @Inject constructor(
         Triple(addresses, selectedId, isVisible)
     }
 
-    val uiState: StateFlow<CustomerHomeUiState> = combine(
-        storeRepository.observeStores(),
+    private val _filterStateFlow = combine(
         _searchQuery,
         _selectedCategory,
         _activeFilter,
+    ) { query, category, filter ->
+        HomeFilterState(query, category, filter)
+    }
+
+    val uiState: StateFlow<CustomerHomeUiState> = combine(
+        storeRepository.observeStores(),
+        _filterStateFlow,
         _addressStateFlow,
-    ) { allStores, query, category, filter, (addresses, selectedId, isPickerVisible) ->
+        _notifAndPromoState,
+    ) { allStores, filterState, (addresses, selectedId, isPickerVisible), notifPromoState ->
         var list = allStores
+        val query = filterState.query
+        val category = filterState.category
+        val filter = filterState.filter
 
         // 1. Lọc theo từ khóa tìm kiếm (Tên quán, món ăn, địa chỉ)
         if (query.isNotBlank()) {
@@ -149,6 +286,11 @@ class CustomerHomeViewModel @Inject constructor(
             addresses = effectiveAddresses,
             selectedAddress = selectedAddress,
             isAddressPickerVisible = isPickerVisible,
+            activeOngoingOrder = notifPromoState.activeOngoingOrder,
+            notifications = notifPromoState.notifications,
+            unreadNotificationCount = notifPromoState.unreadCount,
+            hasClaimedPromoBanner = notifPromoState.hasClaimedPromo,
+            toastFeedback = notifPromoState.toastFeedback,
             errorMessage = null,
         )
     }.catch { e ->
@@ -165,6 +307,24 @@ class CustomerHomeViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = CustomerHomeUiState(isLoading = true),
     )
+
+    fun markNotificationAsRead(id: String) {
+        _readNotificationIds.update { it + id }
+    }
+
+    fun markAllNotificationsAsRead() {
+        val currentIds = uiState.value.notifications.map { it.id }.toSet()
+        _readNotificationIds.update { it + currentIds }
+    }
+
+    fun claimPromoVoucher() {
+        _hasClaimedPromo.value = true
+        _toastFeedback.value = "🎉 Đã nhận mã ưu đãi MIAOSONG50 (Trễ đền 50.000đ)! Đã lưu vào ví voucher"
+    }
+
+    fun dismissToastFeedback() {
+        _toastFeedback.value = null
+    }
 
     fun onSearchQueryChange(query: String) {
         _searchQuery.value = query

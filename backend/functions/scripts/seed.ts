@@ -26,6 +26,21 @@ const FULL_WEEK_SCHEDULE = {
   sun: [{ open: "06:30", close: "22:00" }],
 };
 
+export const STORE_AVATAR_BUN_RIEU_CO_BA =
+  "https://lh3.googleusercontent.com/aida-public/AB6AXuDLEGTUDj1U_Yg11MfTv01vY_3AF_TF1ilrOTa0QYJDXkEjB2s9pLTEReU_XCfyVoTyXJo0-kGTiFUK-NolEEMFXJUUkBnNP63g97dPZEVofOtqWwywcKNYST6_QkTJ9nZoAxUuCD7YrBZLfgU4NZVVeXQnRpx6EdyIbVSI4sxXHPTmWpJlM_5zc3rC4k10r3U8w22Gw-jC7ahY7tLQ_DZMT3xl8an6mM7CBAleZ5Q";
+
+export const STORE_AVATAR_BUN_CHA_CA_NT =
+  "https://lh3.googleusercontent.com/aida-public/AB6AXuCwcq0m3nINlmuB2KG0iqONcr9xO1cdiAGHK9vo-O-DQWz1pnjK0Nu1_RIQwaVrBh9N7xhlx-o16KMQ8IozPwPuN1tkWXvtlbDfpGAv3bN_sKGDLCzEG_TUd7lWBGFli6mMqC0ETSO8HPa_A2NHYPdjq_bQy7kT7x38PQ-g6z1OWiJFIg-jOuYMnR76klNR4TsQEmpDN5U8D2UmfWcqbB_gh9OgivjXWr7YoJeu7eM";
+
+export const STORE_AVATAR_COM_TAM_BA_GHIEN =
+  "https://lh3.googleusercontent.com/aida-public/AB6AXuCEBiL4AIGbHXLkxb8FuNt105Uiyo-yCjJyl_aYulwSvznF-WMFeATEfdS1BewJT_79vsXkamcjtjFm0k2Ol7x6fXhfkgnIMzflDM0dKyATESjoncv2YYyc6QC450rFQNkm9JKJzwazUcVsWTEHq1RVcnD1rtqGRfjBs0UXwuYbWp3dXtgtmUXqeiq0UyytMCp0FtcG-zAIFAi7WD6KIQWPjosxlrPeicLA4CUY3wU";
+
+export const STORE_AVATAR_TRA_SUA_MIAOTEA =
+  "https://lh3.googleusercontent.com/aida-public/AB6AXuCSgFyvurAxNBhD3FUkp4d0APxADrWGjNc9X_5_AOXQjP4TwbH_wdpsFm6aVPUBhWoLH_fdK8ceBr-87CWNz5uBcTTq38rA02dXH962HqoGod8HHChH1Q4DycVg82qLHCpeKc1Y_jq7X-OJFCTzK7rJrQtImY9ZbDijQ5HhQIosKRSFocPs4hKiUka1dvlVvz35YVbwUFx9EN3FYhhySWx9iXe-GbmLhRnRzd-P1iE";
+
+export const DISH_IMAGE_BUN_BO_HUE =
+  "https://lh3.googleusercontent.com/aida-public/AB6AXuBBVh_q7NEC4Dm6gzcSsG3DmZX0eOm-fgSIC4fA1_nj6SMhyv621X-N2CTGYkfYoLFKxTe8yr0L6BJT8Xmkd40lu00vCD-bOz7Qjk5s7jH5TVOikXs9Eu6PhGVnsFY_xBY1r8n2_cz7hIaPUXnFSir28sX50aWOlizhfdSiY_T9YYKO-xBcKKNqOR05OJMAPPrQevEJaLXqsuG5wc4v7VWjS_mEhROqPQqfR_q211A";
+
 async function upsertUser(params: {
   uid: string;
   email: string;
@@ -102,6 +117,7 @@ async function seed() {
     name: "Bún Riêu Cô Ba",
     slug: "bun-rieu-co-ba",
     address: "420 Nguyễn Thị Thập, Tân Quy, Quận 7, TP.HCM",
+    avatarUrl: STORE_AVATAR_BUN_RIEU_CO_BA,
     lat: 10.7385,
     lng: 106.7124,
     phone: "+84909111222",
@@ -123,7 +139,7 @@ async function seed() {
     categoryId: "cat_main",
     name: "Bún Riêu Cua Đặc Biệt",
     description: "Riêu cua đồng nguyên chất, đậu hũ chiên giòn, huyết, chả lụa, nước lèo thanh ngọt.",
-    imageUrl: "",
+    imageUrl: DISH_IMAGE_BUN_BO_HUE,
     basePrice: 45000,
     isAvailable: true,
     optionGroups: [
@@ -161,7 +177,7 @@ async function seed() {
     categoryId: "cat_drink",
     name: "Trà Đá Đường",
     description: "Trà lài ướp lạnh thanh mát.",
-    imageUrl: "",
+    imageUrl: STORE_AVATAR_TRA_SUA_MIAOTEA,
     basePrice: 5000,
     isAvailable: true,
     optionGroups: [],
@@ -202,6 +218,7 @@ async function seed() {
     name: "Bún Chả Cá Nha Trang",
     slug: "bun-cha-ca-nha-trang",
     address: "112 Lê Văn Lương, Tân Kiểng, Quận 7, TP.HCM",
+    avatarUrl: STORE_AVATAR_BUN_CHA_CA_NT,
     lat: 10.7421,
     lng: 106.7042,
     phone: "+84909333444",
@@ -216,11 +233,12 @@ async function seed() {
   });
 
   await store2.collection("categories").doc("cat_main").set({ name: "Món chính", sortOrder: 1 });
+  await store2.collection("categories").doc("cat_drink").set({ name: "Thức uống", sortOrder: 2 });
   await store2.collection("menuItems").doc("item_bun_cha_ca").set({
     categoryId: "cat_main",
     name: "Bún Chả Cá Sứa Nha Trang",
     description: "Chả cá thu chiên & hấp, sứa giòn, nước dùng ninh từ xương cá biển.",
-    imageUrl: "",
+    imageUrl: STORE_AVATAR_BUN_CHA_CA_NT,
     basePrice: 48000,
     isAvailable: true,
     optionGroups: [
@@ -246,6 +264,106 @@ async function seed() {
         options: [
           { id: "opt_top_cha_chien", name: "Thêm chả cá chiên", priceDelta: 10000, isAvailable: true },
           { id: "opt_top_sua", name: "Thêm sứa giòn", priceDelta: 12000, isAvailable: true },
+        ],
+      },
+    ],
+  });
+
+  // 4. Store 3: Cơm Tấm Ba Ghiền
+  const store3 = db.collection("stores").doc("store_com_tam_ba_ghien");
+  await store3.set({
+    name: "Cơm Tấm Ba Ghiền — Sườn Bì Chả",
+    slug: "com-tam-ba-ghien",
+    address: "84 Đặng Văn Ngữ, Phường 10, Phú Nhuận, TP.HCM",
+    avatarUrl: STORE_AVATAR_COM_TAM_BA_GHIEN,
+    lat: 10.7932,
+    lng: 106.6715,
+    phone: "+84908555666",
+    manualStatus: "OPEN",
+    busyUntil: null,
+    weeklySchedule: FULL_WEEK_SCHEDULE,
+    specialDays: [],
+    maxDistanceKm: 12,
+    deliveryProvider: "MOCK",
+    ratingAvg: 4.9,
+    ratingCount: 340,
+  });
+
+  await store3.collection("categories").doc("cat_main").set({ name: "Cơm Tấm Đặc Biệt", sortOrder: 1 });
+  await store3.collection("menuItems").doc("item_com_tam_suon_bi").set({
+    categoryId: "cat_main",
+    name: "Cơm Tấm Sườn Cốt Lết Bì Chả",
+    description: "Sườn cây nướng than hoa mật ong thơm lừng, bì giòn dai thính gạo, chả trứng hấp béo ngậy.",
+    imageUrl: STORE_AVATAR_COM_TAM_BA_GHIEN,
+    basePrice: 65000,
+    isAvailable: true,
+    optionGroups: [
+      {
+        id: "grp_rice_size",
+        name: "Lượng cơm",
+        type: "SINGLE",
+        required: true,
+        min: 1,
+        max: 1,
+        options: [
+          { id: "opt_rice_std", name: "Cơm vừa", priceDelta: 0, isAvailable: true },
+          { id: "opt_rice_more", name: "Thêm cơm (+5k)", priceDelta: 5000, isAvailable: true },
+        ],
+      },
+      {
+        id: "grp_com_topping",
+        name: "Món thêm",
+        type: "MULTI",
+        required: false,
+        min: 0,
+        max: 3,
+        options: [
+          { id: "opt_top_op_la", name: "Trứng ốp la lòng đào", priceDelta: 10000, isAvailable: true },
+          { id: "opt_top_canh_kho_qua", name: "Chén canh khổ qua nhồi thịt", priceDelta: 15000, isAvailable: true },
+        ],
+      },
+    ],
+  });
+
+  // 5. Store 4: Trà Sữa & Cà Phê MiaoTea
+  const store4 = db.collection("stores").doc("store_tra_sua_miaotea");
+  await store4.set({
+    name: "Trà Sữa & Cà Phê MiaoTea",
+    slug: "tra-sua-miaotea",
+    address: "65 Đường D1, Tân Hưng, Quận 7, TP.HCM",
+    avatarUrl: STORE_AVATAR_TRA_SUA_MIAOTEA,
+    lat: 10.7485,
+    lng: 106.6980,
+    phone: "+84909777888",
+    manualStatus: "OPEN",
+    busyUntil: null,
+    weeklySchedule: FULL_WEEK_SCHEDULE,
+    specialDays: [],
+    maxDistanceKm: 8,
+    deliveryProvider: "MOCK",
+    ratingAvg: 4.7,
+    ratingCount: 195,
+  });
+
+  await store4.collection("categories").doc("cat_main").set({ name: "Trà & Sữa", sortOrder: 1 });
+  await store4.collection("menuItems").doc("item_tra_sua_tran_chau").set({
+    categoryId: "cat_main",
+    name: "Trà Sữa Oolong Trân Châu Hoàng Kim",
+    description: "Đậm vị trà oolong cao cấp, sữa tươi thanh trùng béo ngậy kèm trân châu giòn sần sật.",
+    imageUrl: STORE_AVATAR_TRA_SUA_MIAOTEA,
+    basePrice: 38000,
+    isAvailable: true,
+    optionGroups: [
+      {
+        id: "grp_sugar_ice",
+        name: "Mức đường đá",
+        type: "SINGLE",
+        required: true,
+        min: 1,
+        max: 1,
+        options: [
+          { id: "opt_std", name: "100% đường, 100% đá", priceDelta: 0, isAvailable: true },
+          { id: "opt_less", name: "50% đường, 70% đá", priceDelta: 0, isAvailable: true },
         ],
       },
     ],
