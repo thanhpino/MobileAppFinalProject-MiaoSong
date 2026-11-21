@@ -20,6 +20,7 @@ import vn.miaosong.core.designsystem.components.MiaoLoadingOverlay
 import vn.miaosong.core.designsystem.theme.MiaoSongTheme
 import vn.miaosong.core.model.UserRole
 import vn.miaosong.feature.customer.CustomerHomeScreen
+import vn.miaosong.feature.customer.OrderTrackingScreen
 import vn.miaosong.feature.merchant.MerchantDashboardScreen
 
 @AndroidEntryPoint
@@ -35,6 +36,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MiaoSongTheme {
                 var activeRole by rememberSaveable { mutableStateOf(UserRole.CUSTOMER) }
+                var showOrderTracking by rememberSaveable { mutableStateOf(false) }
                 var isLoading by rememberSaveable { mutableStateOf(true) }
 
                 LaunchedEffect(isLoading) {
@@ -45,13 +47,17 @@ class MainActivity : ComponentActivity() {
                 }
 
                 Box(modifier = Modifier.fillMaxSize()) {
-                    when (activeRole) {
-                        UserRole.CUSTOMER -> CustomerHomeScreen(
+                    when {
+                        activeRole == UserRole.MERCHANT -> MerchantDashboardScreen(
+                            onSwitchToCustomerPreview = { activeRole = UserRole.CUSTOMER },
+                        )
+                        showOrderTracking -> OrderTrackingScreen(
+                            onBack = { showOrderTracking = false },
+                        )
+                        else -> CustomerHomeScreen(
                             onSwitchToMerchantPreview = { activeRole = UserRole.MERCHANT },
                             onTriggerLoadingPreview = { isLoading = true },
-                        )
-                        UserRole.MERCHANT -> MerchantDashboardScreen(
-                            onSwitchToCustomerPreview = { activeRole = UserRole.CUSTOMER },
+                            onOpenOrderTracking = { showOrderTracking = true },
                         )
                     }
 

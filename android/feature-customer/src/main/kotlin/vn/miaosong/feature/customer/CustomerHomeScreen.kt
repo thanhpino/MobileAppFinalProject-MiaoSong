@@ -7,6 +7,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,7 +26,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -32,8 +34,8 @@ import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.TwoWheeler
@@ -42,7 +44,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -66,6 +67,11 @@ import androidx.compose.ui.unit.sp
 import vn.miaosong.core.designsystem.components.MiaoAnimatedCatLogo
 import vn.miaosong.core.designsystem.theme.MiaoColors
 
+private data class StoreTag(
+    val label: String,
+    val isTeal: Boolean = false,
+)
+
 private data class DemoStoreCard(
     val id: String,
     val name: String,
@@ -74,10 +80,7 @@ private data class DemoStoreCard(
     val reviewCount: String,
     val distance: String,
     val shipNote: String,
-    val tags: List<String>,
-    val featuredTag: String,
-    val featuredDish: String,
-    val featuredPrice: String,
+    val tags: List<StoreTag>,
     val emojiThumb: String,
 )
 
@@ -90,10 +93,11 @@ private val DEMO_STORES = listOf(
         reviewCount = "(1.2k+)",
         distance = "850m",
         shipNote = "Freeship đơn 50k",
-        tags = listOf("⚡ Quán Quen Chọn Lọc", "Mã MIAO10 giảm 10%"),
-        featuredTag = "Món bán chạy",
-        featuredDish = "Bún Riêu Cua Đặc Biệt (Tô lớn · Chả cá)",
-        featuredPrice = "55.000đ",
+        tags = listOf(
+            StoreTag("Bán chạy", isTeal = true),
+            StoreTag("Quán quen"),
+            StoreTag("Giảm 10% · MIAO10"),
+        ),
         emojiThumb = "🍜",
     ),
     DemoStoreCard(
@@ -104,10 +108,11 @@ private val DEMO_STORES = listOf(
         reviewCount = "(860+)",
         distance = "1.2km",
         shipNote = "Phí giao 14k",
-        tags = listOf("Mã GIAM20K", "Chả cá thu tươi mỗi ngày"),
-        featuredTag = "Gợi ý",
-        featuredDish = "Bún Chả Cá Sứa Nha Trang Đặc Biệt",
-        featuredPrice = "48.000đ",
+        tags = listOf(
+            StoreTag("Gợi ý", isTeal = true),
+            StoreTag("Mã GIAM20K"),
+            StoreTag("Chả cá tươi"),
+        ),
         emojiThumb = "🍲",
     ),
     DemoStoreCard(
@@ -118,40 +123,45 @@ private val DEMO_STORES = listOf(
         reviewCount = "(3.8k+)",
         distance = "1.5km",
         shipNote = "Phí giao 16k",
-        tags = listOf("Mã giảm 25k", "Tặng canh rong biển"),
-        featuredTag = "Món bán chạy",
-        featuredDish = "Cơm sườn nướng mỡ hành đặc biệt",
-        featuredPrice = "65.000đ",
+        tags = listOf(
+            StoreTag("Bán chạy", isTeal = true),
+            StoreTag("Giảm 25k"),
+            StoreTag("Tặng canh"),
+        ),
         emojiThumb = "🍛",
     ),
 )
 
 /**
- * Trang chủ Chế độ Khách dựng theo đúng thiết kế Stitch
- * (`docs/ui_design/stitch_miaosong_delivery_app_ui/miaosong_trang_ch_giao_h_ng/code.html`),
- * sử dụng trực tiếp logo mèo thần tài vẫy tay `MiaoAnimatedCatLogo`.
+ * Trang chủ Chế độ Khách — chuẩn Warm Savory Delivery (Stitch), đã tinh chỉnh:
+ * 1. Top Nav dùng để điều hướng nhanh (Logo + Giỏ hàng + Chuông + Chế độ Quán), dời địa chỉ xuống dòng thoáng riêng.
+ * 2. Badge sấm sét `⚡15p` nhô ra góc trên trái ngoài khung ảnh giống lưới danh mục.
+ * 3. Toàn bộ tag pill `maxLines = 1` trong FlowRow, không bẻ đôi chữ.
+ * 4. Thẻ quán gọn gàng, chỉ gắn tag (không lặp thanh món bán chạy).
+ * 5. Thanh nổi đơn hàng gọn gàng; bấm "Xem ngay >" mở màn Theo dõi đơn & Tài xế realtime.
  */
 @Composable
 fun CustomerHomeScreen(
     onSwitchToMerchantPreview: () -> Unit,
     onTriggerLoadingPreview: () -> Unit = {},
+    onOpenOrderTracking: () -> Unit = {},
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
     Scaffold(
         containerColor = MiaoColors.SurfaceCanvas,
         topBar = {
-            StitchTopHeader(
+            StitchTopNavHeader(
                 onSwitchToMerchantPreview = onSwitchToMerchantPreview,
                 onTriggerLoadingPreview = onTriggerLoadingPreview,
             )
         },
         bottomBar = {
             Column {
-                // Thanh nổi theo dõi đơn hàng đang giao (Floating Active Order Status Pill)
+                // Thanh nổi gọn gàng — thông tin tài xế & vị trí realtime nằm bên trong "Xem ngay >"
                 ActiveOrderFloatingPill(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    onClick = onTriggerLoadingPreview,
+                    onClick = onOpenOrderTracking,
                 )
                 NavigationBar(
                     containerColor = Color.White,
@@ -160,15 +170,15 @@ fun CustomerHomeScreen(
                     val navItems = listOf(
                         "Trang chủ" to Icons.Default.Home,
                         "Ưu đãi / Quán" to Icons.Default.Storefront,
-                        "Đơn hàng" to Icons.Default.ReceiptLong,
-                        "Chế độ Quán" to Icons.Default.Person,
+                        "Đơn hàng" to Icons.AutoMirrored.Filled.ReceiptLong,
+                        "Tài khoản" to Icons.Default.Person,
                     )
                     navItems.forEachIndexed { index, (label, icon) ->
                         NavigationBarItem(
                             selected = selectedTab == index,
                             onClick = {
-                                if (index == 3) {
-                                    onSwitchToMerchantPreview()
+                                if (index == 2) {
+                                    onOpenOrderTracking()
                                 } else {
                                     selectedTab = index
                                 }
@@ -206,31 +216,36 @@ fun CustomerHomeScreen(
                 MiaoGreetingBanner(onClick = onTriggerLoadingPreview)
             }
 
-            // 2. Thanh tìm kiếm + Trending tags
+            // 2. Thanh chọn địa chỉ giao hàng thoáng rộng (không bị cắt trên Top Bar)
+            item {
+                DeliveryAddressRow()
+            }
+
+            // 3. Thanh tìm kiếm + Trending tags
             item {
                 SearchAndTrendingSection()
             }
 
-            // 3. Lưới danh mục món ăn (2 hàng x 4 cột)
+            // 4. Lưới danh mục món ăn (2 hàng x 4 cột)
             item {
                 QuickCategoryGrid()
             }
 
-            // 4. Banner cam khuyến mãi
+            // 5. Banner cam khuyến mãi
             item {
                 PromoBannerCard(onClaimClick = onTriggerLoadingPreview)
             }
 
-            // 5. Thanh lọc quán
+            // 6. Thanh lọc quán
             item {
                 FilterSortPillsRow()
             }
 
-            // 6. Danh sách quán ăn D2C
+            // 7. Danh sách quán ăn D2C gọn gàng
             items(DEMO_STORES, key = { it.id }) { store ->
                 StoreFeedCard(
                     store = store,
-                    onAddClick = onTriggerLoadingPreview,
+                    onClick = onTriggerLoadingPreview,
                 )
             }
         }
@@ -238,7 +253,7 @@ fun CustomerHomeScreen(
 }
 
 @Composable
-private fun StitchTopHeader(
+private fun StitchTopNavHeader(
     onSwitchToMerchantPreview: () -> Unit,
     onTriggerLoadingPreview: () -> Unit,
 ) {
@@ -254,13 +269,13 @@ private fun StitchTopHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            // Logo mèo thần tài tĩnh (static) + Brand Name
+            // Bên trái: Logo mèo tĩnh + Brand Name
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.clickable { onTriggerLoadingPreview() },
             ) {
                 MiaoAnimatedCatLogo(
-                    size = 42.dp,
+                    size = 40.dp,
                     animated = false,
                     modifier = Modifier.clip(RoundedCornerShape(12.dp)),
                 )
@@ -281,67 +296,130 @@ private fun StitchTopHeader(
                 }
             }
 
-            // Pill địa chỉ giao hàng
-            Surface(
-                color = MiaoColors.SurfaceContainerLow,
-                shape = RoundedCornerShape(999.dp),
-                border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.2f)),
-                modifier = Modifier.weight(1f, fill = false).padding(horizontal = 8.dp),
+            // Bên phải: Các nút điều hướng nhanh (Chế độ Quán · Giỏ hàng · Thông báo)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                Surface(
+                    color = MiaoColors.SurfaceContainerLow,
+                    shape = RoundedCornerShape(999.dp),
+                    border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.25f)),
+                    modifier = Modifier.clickable { onSwitchToMerchantPreview() },
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.LocationOn,
-                        contentDescription = null,
-                        tint = MiaoColors.BrandOrange,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "19 Nguyễn Hữu Thọ, Q.7",
-                        color = MiaoColors.OnSurface,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = null,
-                        tint = MiaoColors.OnSurfaceVariant,
-                        modifier = Modifier.size(16.dp),
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Storefront,
+                            contentDescription = "Chế độ Quán",
+                            tint = MiaoColors.BrandOrange,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Text(
+                            text = "Quán",
+                            color = MiaoColors.OnSurface,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
                 }
-            }
 
-            // Nút thông báo
-            Surface(
-                color = MiaoColors.SurfaceContainerLow,
-                shape = CircleShape,
-                border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.2f)),
-                modifier = Modifier
-                    .size(38.dp)
-                    .clickable { onSwitchToMerchantPreview() },
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Default.Notifications,
-                        contentDescription = "Thông báo",
-                        tint = MiaoColors.OnSurface,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(7.dp)
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(MiaoColors.BrandOrange),
-                    )
+                // Nút Giỏ hàng
+                Surface(
+                    color = MiaoColors.SurfaceContainerLow,
+                    shape = CircleShape,
+                    border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.2f)),
+                    modifier = Modifier.size(38.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.ShoppingBag,
+                            contentDescription = "Giỏ hàng",
+                            tint = MiaoColors.OnSurface,
+                            modifier = Modifier.size(19.dp),
+                        )
+                    }
+                }
+
+                // Nút Thông báo
+                Surface(
+                    color = MiaoColors.SurfaceContainerLow,
+                    shape = CircleShape,
+                    border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.2f)),
+                    modifier = Modifier.size(38.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Notifications,
+                            contentDescription = "Thông báo",
+                            tint = MiaoColors.OnSurface,
+                            modifier = Modifier.size(19.dp),
+                        )
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(7.dp)
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(MiaoColors.BrandOrange),
+                        )
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun DeliveryAddressRow() {
+    Surface(
+        color = Color.White,
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.16f)),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.LocationOn,
+                    contentDescription = null,
+                    tint = MiaoColors.BrandOrange,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Giao đến: ",
+                    color = MiaoColors.OnSurfaceVariant,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                Text(
+                    text = "19 Nguyễn Hữu Thọ, Tân Phong, Quận 7",
+                    color = MiaoColors.OnSurface,
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowDown,
+                contentDescription = "Đổi địa chỉ",
+                tint = MiaoColors.OnSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
         }
     }
 }
@@ -558,6 +636,7 @@ private fun QuickCategoryGrid() {
                                         lineHeight = 10.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         maxLines = 1,
+                                        softWrap = false,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                     )
                                 }
@@ -711,170 +790,126 @@ private fun FilterSortPillsRow() {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StoreFeedCard(
     store: DemoStoreCard,
-    onAddClick: () -> Unit,
+    onClick: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.12f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
-        Column(
+        Row(
             modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                // Ảnh đại diện món + badge thời gian góc trái
-                Box(
-                    modifier = Modifier
-                        .size(76.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(MiaoColors.SurfaceContainerLow),
-                    contentAlignment = Alignment.Center,
+            // Khung ảnh đại diện với badge `⚡15p` nhô ra góc trên trái ngoài khung
+            Box(
+                modifier = Modifier.padding(top = 6.dp, start = 6.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Surface(
+                    color = MiaoColors.SurfaceContainerLow,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.size(72.dp),
                 ) {
-                    Text(text = store.emojiThumb, fontSize = 36.sp)
-                    Surface(
-                        color = MiaoColors.SecondaryTealBright,
-                        shape = RoundedCornerShape(6.dp),
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .padding(4.dp),
-                    ) {
-                        Text(
-                            text = "⚡${store.etaBadge}",
-                            color = Color.White,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
-                        )
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(text = store.emojiThumb, fontSize = 36.sp)
                     }
                 }
-
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                Surface(
+                    color = MiaoColors.SecondaryTealBright,
+                    shape = RoundedCornerShape(999.dp),
+                    shadowElevation = 2.dp,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .offset(x = (-7).dp, y = (-7).dp),
                 ) {
                     Text(
-                        text = store.name,
+                        text = "⚡${store.etaBadge}",
+                        color = Color.White,
+                        fontSize = 9.5.sp,
+                        lineHeight = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp),
+                    )
+                }
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Text(
+                    text = store.name,
+                    color = MiaoColors.OnSurface,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = null,
+                        tint = MiaoColors.TertiaryAmber,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Text(
+                        text = store.rating,
                         color = MiaoColors.OnSurface,
-                        fontSize = 15.sp,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = "${store.reviewCount} • ${store.distance} • ",
+                        color = MiaoColors.OnSurfaceVariant,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                    )
+                    Text(
+                        text = store.shipNote,
+                        color = MiaoColors.SecondaryTeal,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Star,
-                            contentDescription = null,
-                            tint = MiaoColors.TertiaryAmber,
-                            modifier = Modifier.size(14.dp),
-                        )
-                        Text(
-                            text = store.rating,
-                            color = MiaoColors.OnSurface,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Text(
-                            text = "${store.reviewCount} • ${store.distance} • ",
-                            color = MiaoColors.OnSurfaceVariant,
-                            fontSize = 11.sp,
-                        )
-                        Text(
-                            text = store.shipNote,
-                            color = MiaoColors.SecondaryTeal,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        store.tags.forEach { t ->
-                            Surface(
-                                color = Color(0xFFFFF2E6),
-                                shape = RoundedCornerShape(6.dp),
-                                border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.2f)),
-                            ) {
-                                Text(
-                                    text = t,
-                                    color = MiaoColors.BrandOrange,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                )
-                            }
-                        }
-                    }
                 }
-            }
-
-            // Thanh mini-bar giới thiệu món tiêu biểu + nút [+]
-            Surface(
-                color = MiaoColors.SurfaceCanvas,
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                // FlowRow: mỗi tag luôn 1 dòng gọn gàng, không bao giờ bẻ chữ
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f),
-                    ) {
+                    store.tags.forEach { tag ->
+                        val bg = if (tag.isTeal) Color(0xFFE6FAF8) else Color(0xFFFFF2E6)
+                        val fg = if (tag.isTeal) MiaoColors.SecondaryTeal else MiaoColors.BrandOrange
                         Surface(
-                            color = Color(0xFFE6FAF8),
+                            color = bg,
                             shape = RoundedCornerShape(6.dp),
+                            border = BorderStroke(1.dp, fg.copy(alpha = 0.22f)),
                         ) {
                             Text(
-                                text = store.featuredTag,
-                                color = MiaoColors.SecondaryTeal,
+                                text = tag.label,
+                                color = fg,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp),
                             )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = store.featuredDish,
-                            color = MiaoColors.OnSurface,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = store.featuredPrice,
-                            color = MiaoColors.BrandOrange,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Surface(
-                            color = MiaoColors.BrandOrange,
-                            shape = CircleShape,
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clickable { onAddClick() },
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = "Thêm vào giỏ",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(16.dp),
-                                )
-                            }
                         }
                     }
                 }
@@ -883,6 +918,10 @@ private fun StoreFeedCard(
     }
 }
 
+/**
+ * Thanh nổi gọn gàng: chỉ báo trạng thái đơn đang giao + nút "Xem ngay >".
+ * Chi tiết vị trí realtime & thông tin tài xế (Tên, SĐT, Biển số) hiển thị trong OrderTrackingScreen.
+ */
 @Composable
 private fun ActiveOrderFloatingPill(
     modifier: Modifier = Modifier,
@@ -921,42 +960,42 @@ private fun ActiveOrderFloatingPill(
                     }
                 }
                 Spacer(modifier = Modifier.width(10.dp))
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "Đơn hàng đang giao đến bạn",
-                            color = MiaoColors.OnSurface,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Surface(
-                            color = Color(0xFFFFEDD5),
-                            shape = RoundedCornerShape(999.dp),
-                        ) {
-                            Text(
-                                text = "Đang đến",
-                                color = MiaoColors.BrandOrange,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
-                            )
-                        }
-                    }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     Text(
-                        text = "Tài xế Minh (59X1-123.45) còn cách 300m (~4 phút)",
-                        color = MiaoColors.OnSurfaceVariant,
-                        fontSize = 11.sp,
+                        text = "Đơn hàng đang giao đến bạn",
+                        color = MiaoColors.OnSurface,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    Surface(
+                        color = Color(0xFFFFEDD5),
+                        shape = RoundedCornerShape(999.dp),
+                    ) {
+                        Text(
+                            text = "Đang đến",
+                            color = MiaoColors.BrandOrange,
+                            fontSize = 9.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                        )
+                    }
                 }
             }
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "Xem ngay >",
                 color = MiaoColors.BrandOrange,
                 fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+                softWrap = false,
             )
         }
     }
