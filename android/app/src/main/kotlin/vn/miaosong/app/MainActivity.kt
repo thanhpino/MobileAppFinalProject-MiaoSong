@@ -39,6 +39,7 @@ class MainActivity : ComponentActivity() {
             MiaoSongTheme {
                 var activeRole by rememberSaveable { mutableStateOf(UserRole.CUSTOMER) }
                 var showOrderTracking by rememberSaveable { mutableStateOf(false) }
+                var trackingOrderId by rememberSaveable { mutableStateOf<String?>(null) }
                 var showAuthScreen by rememberSaveable { mutableStateOf(true) }
                 var showProfileScreen by rememberSaveable { mutableStateOf(false) }
                 var homeInitialTab by rememberSaveable { mutableStateOf(0) }
@@ -83,7 +84,11 @@ class MainActivity : ComponentActivity() {
                             },
                         )
                         showOrderTracking -> OrderTrackingScreen(
-                            onBack = { showOrderTracking = false },
+                            orderId = trackingOrderId,
+                            onBack = {
+                                showOrderTracking = false
+                                trackingOrderId = null
+                            },
                         )
                         else -> CustomerHomeScreen(
                             onSwitchToMerchantPreview = {
@@ -97,7 +102,10 @@ class MainActivity : ComponentActivity() {
                                 loadingDurationMs = 2000L
                                 isLoading = true
                             },
-                            onOpenOrderTracking = { showOrderTracking = true },
+                            onOpenOrderTracking = { id ->
+                                trackingOrderId = id
+                                showOrderTracking = true
+                            },
                             onOpenProfile = { showProfileScreen = true },
                             initialTab = homeInitialTab,
                         )
