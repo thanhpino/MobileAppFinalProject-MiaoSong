@@ -5,6 +5,7 @@ import vn.miaosong.core.common.AppResult
 import vn.miaosong.core.model.CartLine
 import vn.miaosong.core.model.DeliveryAddress
 import vn.miaosong.core.model.DeliveryQuote
+import vn.miaosong.core.model.ManualStoreStatus
 import vn.miaosong.core.model.MenuCategory
 import vn.miaosong.core.model.MenuItem
 import vn.miaosong.core.model.Order
@@ -25,6 +26,19 @@ interface StoreRepository {
     fun observeCategories(storeId: String): Flow<List<MenuCategory>>
     fun observeMenuItems(storeId: String): Flow<List<MenuItem>>
     fun observeVouchers(storeId: String): Flow<List<Voucher>>
+}
+
+interface MerchantCatalogRepository {
+    suspend fun upsertCategory(storeId: String, category: MenuCategory): AppResult<Unit>
+    suspend fun deleteCategory(storeId: String, categoryId: String): AppResult<Unit>
+    suspend fun upsertMenuItem(storeId: String, item: MenuItem): AppResult<Unit>
+    suspend fun toggleMenuItemAvailability(storeId: String, itemId: String, isAvailable: Boolean): AppResult<Unit>
+    suspend fun deleteMenuItem(storeId: String, itemId: String): AppResult<Unit>
+    suspend fun upsertVoucher(storeId: String, voucher: Voucher): AppResult<Unit>
+    suspend fun toggleVoucherActive(storeId: String, voucherId: String, isActive: Boolean): AppResult<Unit>
+    suspend fun deleteVoucher(storeId: String, voucherId: String): AppResult<Unit>
+    suspend fun updateStoreStatus(storeId: String, status: ManualStoreStatus, busyUntilEpochMs: Long?): AppResult<Unit>
+    suspend fun uploadStoreAvatar(storeId: String, imageBytes: ByteArray): AppResult<String>
 }
 
 interface CartRepository {

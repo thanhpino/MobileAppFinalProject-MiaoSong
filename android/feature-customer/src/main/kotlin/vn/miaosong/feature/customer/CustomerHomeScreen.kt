@@ -61,12 +61,14 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
 import vn.miaosong.core.designsystem.components.MiaoAnimatedCatLogo
 import vn.miaosong.core.designsystem.theme.MiaoColors
 import vn.miaosong.core.model.ManualStoreStatus
@@ -88,6 +90,7 @@ private data class DemoStoreCard(
     val shipNote: String,
     val tags: List<StoreTag>,
     val emojiThumb: String,
+    val avatarUrl: String = "",
     val isDimmed: Boolean = false,
 )
 
@@ -279,6 +282,7 @@ private fun Store.toStoreCard(): DemoStoreCard {
             StoreTag(if (slug.contains("rieu")) "Giảm 10%" else "Ưu đãi"),
         ),
         emojiThumb = emoji,
+        avatarUrl = avatarUrl,
         isDimmed = schedule.manualStatus != ManualStoreStatus.OPEN,
     )
 }
@@ -852,7 +856,16 @@ private fun StoreFeedCard(
                     modifier = Modifier.size(72.dp),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text(text = store.emojiThumb, fontSize = 36.sp)
+                        if (store.avatarUrl.isNotBlank()) {
+                            AsyncImage(
+                                model = store.avatarUrl,
+                                contentDescription = store.name,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else {
+                            Text(text = store.emojiThumb, fontSize = 36.sp)
+                        }
                     }
                 }
                 Surface(

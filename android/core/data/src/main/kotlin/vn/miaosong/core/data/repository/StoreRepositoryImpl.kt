@@ -140,6 +140,7 @@ class StoreRepositoryImpl @Inject constructor(
             name = name,
             slug = getString("slug").orEmpty(),
             address = getString("address").orEmpty(),
+            avatarUrl = getString("avatarUrl").orEmpty(),
             lat = getDouble("lat") ?: 0.0,
             lng = getDouble("lng") ?: 0.0,
             phone = getString("phone").orEmpty(),
