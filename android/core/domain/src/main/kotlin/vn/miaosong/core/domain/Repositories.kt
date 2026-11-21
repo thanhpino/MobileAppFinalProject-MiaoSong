@@ -21,6 +21,12 @@ import vn.miaosong.core.model.Voucher
 interface AuthRepository {
     fun observeCurrentUser(): Flow<UserProfile?>
     suspend fun signInWithEmail(email: String, password: String): AppResult<UserProfile>
+    suspend fun signUpWithEmail(email: String, password: String, name: String): AppResult<UserProfile>
+    suspend fun signInWithGoogle(idToken: String): AppResult<UserProfile>
+    suspend fun signInWithFacebook(token: String): AppResult<UserProfile>
+    suspend fun sendPasswordResetEmail(email: String): AppResult<Unit>
+    suspend fun changePassword(newPassword: String): AppResult<Unit>
+    suspend fun updateProfile(name: String, phone: String): AppResult<UserProfile>
     suspend fun signOut()
 }
 
