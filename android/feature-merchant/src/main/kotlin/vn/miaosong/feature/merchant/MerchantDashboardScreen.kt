@@ -226,6 +226,7 @@ fun MerchantDashboardScreen(
                     onMarkReady = viewModel::markOrderReady,
                     onDispatchDriver = viewModel::dispatchDriver,
                     onAdvanceMockDelivery = viewModel::advanceMockDelivery,
+                    onShowFeedback = viewModel::showFeedback,
                 )
                 3 -> MerchantStoreProfileTab(
                     uiState = uiState,
@@ -803,8 +804,11 @@ private fun MerchantKitchenTab(
     onMarkReady: (String) -> Unit,
     onDispatchDriver: (String) -> Unit,
     onAdvanceMockDelivery: (String, OrderStatus) -> Unit,
+    onShowFeedback: (String) -> Unit = {},
 ) {
     var rejectingOrder by remember { mutableStateOf<Order?>(null) }
+    var previewNewOrderStatus by remember { mutableStateOf("Đơn mới") }
+    var previewCookingStatus by remember { mutableStateOf("Đang chuẩn bị") }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -854,12 +858,12 @@ private fun MerchantKitchenTab(
                                 modifier = Modifier.weight(1f),
                             )
                             Surface(
-                                color = Color(0xFFFFEADF),
+                                color = if (previewNewOrderStatus == "Đơn mới") Color(0xFFFFEADF) else Color(0xFFE6FAF8),
                                 shape = RoundedCornerShape(999.dp),
                             ) {
                                 Text(
-                                    text = "Đơn mới",
-                                    color = MiaoColors.BrandOrangeDark,
+                                    text = previewNewOrderStatus,
+                                    color = if (previewNewOrderStatus == "Đơn mới") MiaoColors.BrandOrangeDark else MiaoColors.SecondaryTeal,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     maxLines = 1,
@@ -923,14 +927,19 @@ private fun MerchantKitchenTab(
                             Surface(
                                 color = MiaoColors.BrandOrange,
                                 shape = RoundedCornerShape(999.dp),
-                                modifier = Modifier.weight(1.45f),
+                                modifier = Modifier
+                                    .weight(1.45f)
+                                    .clickable {
+                                        previewNewOrderStatus = "Đang chuẩn bị"
+                                        onShowFeedback("Đã xác nhận nhận đơn — Khách nhận thông báo 'Quán đang chuẩn bị món'")
+                                    },
                             ) {
                                 Box(
                                     modifier = Modifier.padding(vertical = 11.dp),
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     Text(
-                                        text = "Xác nhận nhận đơn",
+                                        text = if (previewNewOrderStatus == "Đơn mới") "Xác nhận nhận đơn" else "Đã xác nhận",
                                         color = Color.White,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.5.sp,
@@ -973,7 +982,7 @@ private fun MerchantKitchenTab(
                                 shape = RoundedCornerShape(999.dp),
                             ) {
                                 Text(
-                                    text = "Đang chuẩn bị",
+                                    text = previewCookingStatus,
                                     color = MiaoColors.SecondaryTeal,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
@@ -1007,7 +1016,12 @@ private fun MerchantKitchenTab(
                                 color = MiaoColors.SurfaceContainerLow,
                                 shape = RoundedCornerShape(999.dp),
                                 border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.3f)),
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        previewCookingStatus = "Sẵn sàng giao"
+                                        onShowFeedback("Đơn đã làm xong — Sẵn sàng gọi tài xế Lalamove!")
+                                    },
                             ) {
                                 Box(
                                     modifier = Modifier.padding(vertical = 11.dp),
@@ -1024,7 +1038,12 @@ private fun MerchantKitchenTab(
                             Surface(
                                 color = MiaoColors.BrandOrange,
                                 shape = RoundedCornerShape(999.dp),
-                                modifier = Modifier.weight(1.2f),
+                                modifier = Modifier
+                                    .weight(1.2f)
+                                    .clickable {
+                                        previewCookingStatus = "Đang tìm tài xế"
+                                        onShowFeedback("Đã gửi yêu cầu điều phối tài xế Lalamove!")
+                                    },
                             ) {
                                 Box(
                                     modifier = Modifier.padding(vertical = 11.dp),
