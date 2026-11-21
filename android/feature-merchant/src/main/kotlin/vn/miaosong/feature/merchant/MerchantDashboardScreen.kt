@@ -106,11 +106,19 @@ import vn.miaosong.core.model.VoucherType
 @Composable
 fun MerchantDashboardScreen(
     onSwitchToCustomerPreview: () -> Unit,
+    initialTab: Int = 0,
+    kdsNavigationNonce: Int = 0,
     viewModel: MerchantViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    var selectedTab by rememberSaveable(initialTab) { mutableIntStateOf(initialTab) }
     val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(kdsNavigationNonce) {
+        if (kdsNavigationNonce > 0) {
+            selectedTab = 2
+        }
+    }
 
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var showAddItemDialog by remember { mutableStateOf(false) }
@@ -808,7 +816,20 @@ private fun MerchantKitchenTab(
 ) {
     var rejectingOrder by remember { mutableStateOf<Order?>(null) }
     var previewNewOrderStatus by remember { mutableStateOf("Đơn mới") }
+    var previewNewOrderRejected by remember { mutableStateOf(false) }
     var previewCookingStatus by remember { mutableStateOf("Đang chuẩn bị") }
+    val sortedOrders = remember(orders) {
+        val terminalStatuses = setOf(
+            OrderStatus.COMPLETED,
+            OrderStatus.REJECTED,
+            OrderStatus.CANCELLED,
+            OrderStatus.DELIVERY_FAILED,
+        )
+        orders.sortedWith(
+            compareBy<Order> { it.status in terminalStatuses }
+                .thenByDescending { it.createdAtEpochMs },
+        )
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -832,7 +853,8 @@ private fun MerchantKitchenTab(
 
         if (orders.isEmpty()) {
             // 1. Mẫu Đơn mới: có đầy đủ nút "Từ chối đơn" & "Xác nhận nhận đơn" (Mục 3)
-            item {
+            if (!previewNewOrderRejected) {
+                item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(18.dp),
@@ -948,6 +970,7 @@ private fun MerchantKitchenTab(
                             }
                         }
                     }
+                }
                 }
             }
 
@@ -1165,7 +1188,7 @@ private fun MerchantKitchenTab(
                 }
             }
         } else {
-            items(orders, key = { it.id }) { order ->
+            items(sortedOrders, key = { it.id }) { order ->
                 MerchantOrderKdsCard(
                     order = order,
                     onConfirm = { onConfirmOrder(order.id) },
@@ -1184,7 +1207,10 @@ private fun MerchantKitchenTab(
             isPrepaid = target.payment.status == vn.miaosong.core.model.PaymentStatus.PAID,
             onDismiss = { rejectingOrder = null },
             onConfirm = { code, text ->
-                if (target.id != "preview_new") {
+                if (target.id == "preview_new") {
+                    previewNewOrderRejected = true
+                    onShowFeedback("Đã từ chối đơn #${target.code} ($text) — Đã gửi thông báo & hoàn tiền cho khách!")
+                } else {
                     onRejectOrder(target.id, code, text)
                 }
                 rejectingOrder = null
@@ -1274,6 +1300,29 @@ private fun MerchantOrderKdsCard(
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
             )
+
+            // Hiển thị rõ lý do từ chối & trạng thái hoàn tiền cho đơn đã từ chối
+            if (order.status == OrderStatus.REJECTED) {
+                val refundNote = when (order.refundStatus) {
+                    vn.miaosong.core.model.RefundStatus.REFUNDED -> " · Đã hoàn tiền cho khách"
+                    vn.miaosong.core.model.RefundStatus.PENDING -> " · Đang xử lý hoàn tiền"
+                    else -> ""
+                }
+                val reasonText = order.rejectReason?.takeIf { it.isNotBlank() } ?: "Quán từ chối nhận đơn"
+                Surface(
+                    color = Color(0xFFFFF1F0),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = "Lý do từ chối: $reasonText$refundNote",
+                        color = Color(0xFF93000A),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                    )
+                }
+            }
 
             // Cảnh báo rủi ro giao quá lâu (>= 30 phút) cho Chủ quán (Mục 5 đề bài)
             val isDeliveryActive = order.status in setOf(
