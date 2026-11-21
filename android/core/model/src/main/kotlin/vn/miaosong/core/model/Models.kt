@@ -86,6 +86,7 @@ data class Store(
     val name: String,
     val slug: String,
     val address: String,
+    val avatarUrl: String = "",
     val lat: Double,
     val lng: Double,
     val phone: String,

@@ -41,11 +41,16 @@ class MainActivity : ComponentActivity() {
                 var showOrderTracking by rememberSaveable { mutableStateOf(false) }
                 var showAuthScreen by rememberSaveable { mutableStateOf(true) }
                 var showProfileScreen by rememberSaveable { mutableStateOf(false) }
+                var homeInitialTab by rememberSaveable { mutableStateOf(0) }
                 var isLoading by rememberSaveable { mutableStateOf(true) }
+                var loadingMessage by rememberSaveable {
+                    mutableStateOf("MiaoSong đang chuẩn bị món ngon cho bạn...")
+                }
+                var loadingDurationMs by rememberSaveable { mutableStateOf(2200L) }
 
-                LaunchedEffect(isLoading) {
+                LaunchedEffect(isLoading, loadingMessage) {
                     if (isLoading) {
-                        delay(2400L)
+                        delay(loadingDurationMs)
                         isLoading = false
                     }
                 }
@@ -66,27 +71,42 @@ class MainActivity : ComponentActivity() {
                             },
                             onOpenOrderHistory = {
                                 showProfileScreen = false
-                                showOrderTracking = true
+                                homeInitialTab = 2
                             },
                         )
                         activeRole == UserRole.MERCHANT -> MerchantDashboardScreen(
-                            onSwitchToCustomerPreview = { activeRole = UserRole.CUSTOMER },
+                            onSwitchToCustomerPreview = {
+                                loadingMessage = "Đang quay lại trang chủ MiaoSong..."
+                                loadingDurationMs = 700L
+                                isLoading = true
+                                activeRole = UserRole.CUSTOMER
+                            },
                         )
                         showOrderTracking -> OrderTrackingScreen(
                             onBack = { showOrderTracking = false },
                         )
                         else -> CustomerHomeScreen(
-                            onSwitchToMerchantPreview = { activeRole = UserRole.MERCHANT },
-                            onTriggerLoadingPreview = { isLoading = true },
+                            onSwitchToMerchantPreview = {
+                                loadingMessage = "Đang mở không gian quản lý Quán..."
+                                loadingDurationMs = 900L
+                                isLoading = true
+                                activeRole = UserRole.MERCHANT
+                            },
+                            onTriggerLoadingPreview = {
+                                loadingMessage = "MiaoSong đang chuẩn bị món ngon cho bạn..."
+                                loadingDurationMs = 2000L
+                                isLoading = true
+                            },
                             onOpenOrderTracking = { showOrderTracking = true },
                             onOpenProfile = { showProfileScreen = true },
+                            initialTab = homeInitialTab,
                         )
                     }
 
                     // Màn hình Loading nền đen mờ + mèo thần tài vẫy tay cỡ lớn (ANIMATION_35 từ Stitch)
                     MiaoLoadingOverlay(
                         visible = isLoading,
-                        message = "MiaoSong đang chuẩn bị món ngon cho bạn...",
+                        message = loadingMessage,
                         onDismiss = { isLoading = false },
                     )
                 }

@@ -1,13 +1,14 @@
 package vn.miaosong.core.data.repository
 
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import vn.miaosong.core.common.AppResult
 import vn.miaosong.core.domain.AuthRepository
@@ -22,7 +23,7 @@ class AuthRepositoryImpl @Inject constructor(
     private val firestore: FirebaseFirestore,
 ) : AuthRepository {
 
-    // Fallback state flow cho mock account hoặc khi chạy offline không có emulator
+    // Fallback state flow cho tài khoản demo hoặc chạy offline
     private val _mockCurrentUser = MutableStateFlow<UserProfile?>(null)
 
     companion object {
@@ -50,95 +51,45 @@ class AuthRepositoryImpl @Inject constructor(
             if (firebaseUser == null) {
                 trySend(_mockCurrentUser.value)
             } else {
-                // Fetch profile từ Firestore
-                firestore.collection("users").document(firebaseUser.uid).get()
-                    .addOnSuccessListener { doc ->
-                        val roleStr = doc.getString("role") ?: "CUSTOMER"
-                        val role = try {
-                            UserRole.valueOf(roleStr)
-                        } catch (_: Exception) {
-                            UserRole.CUSTOMER
-                        }
-                        val profile = UserProfile(
-                            uid = firebaseUser.uid,
-                            name = doc.getString("name") ?: firebaseUser.displayName ?: "Khách hàng",
-                            email = doc.getString("email") ?: firebaseUser.email ?: "",
-                            phone = doc.getString("phone") ?: "",
-                            role = role,
-                            storeId = doc.getString("storeId"),
-                        )
-                        trySend(profile)
-                    }
-                    .addOnFailureListener {
-                        // Fallback dùng FirebaseUser cơ bản nếu firestore lỗi
-                        trySend(
-                            UserProfile(
-                                uid = firebaseUser.uid,
-                                name = firebaseUser.displayName ?: "Khách hàng",
-                                email = firebaseUser.email ?: "",
-                                role = UserRole.CUSTOMER,
-                            )
-                        )
-                    }
+                launch {
+                    val profile = resolveProfile(firebaseUser, forceRefresh = false)
+                    _mockCurrentUser.value = profile
+                    trySend(profile)
+                }
             }
         }
-
         auth.addAuthStateListener(listener)
         awaitClose { auth.removeAuthStateListener(listener) }
     }
 
     override suspend fun signInWithEmail(email: String, password: String): AppResult<UserProfile> {
         val trimmedEmail = email.trim()
-        // 1. Kiểm tra tài khoản Demo đặc biệt (tương thích seed.ts)
+        // 1. Tài khoản Demo nhanh (tương thích seed.ts)
         if (trimmedEmail.equals(DEMO_CUSTOMER.email, ignoreCase = true) && password == "Password123!") {
             _mockCurrentUser.value = DEMO_CUSTOMER
-            try {
-                // Thử đồng bộ với Firebase Auth nếu có
-                auth.signInWithEmailAndPassword(trimmedEmail, password).await()
-            } catch (_: Exception) {
-                // Chạy offline/sandbox không có mạng vẫn thành công
-            }
+            runCatching { auth.signInWithEmailAndPassword(trimmedEmail, password).await() }
             return AppResult.Success(DEMO_CUSTOMER)
         }
-
         if (trimmedEmail.equals(DEMO_MERCHANT.email, ignoreCase = true) && password == "Password123!") {
             _mockCurrentUser.value = DEMO_MERCHANT
-            try {
-                auth.signInWithEmailAndPassword(trimmedEmail, password).await()
-            } catch (_: Exception) {}
+            runCatching { auth.signInWithEmailAndPassword(trimmedEmail, password).await() }
             return AppResult.Success(DEMO_MERCHANT)
         }
 
-        // 2. Đăng nhập qua Firebase Auth chuẩn
+        // 2. Đăng nhập Firebase Auth thật + đọc Custom Claims (role, storeId)
         return try {
             val result = auth.signInWithEmailAndPassword(trimmedEmail, password).await()
             val firebaseUser = result.user ?: return AppResult.Error(
                 code = "AUTH_USER_NULL",
-                message = "Không lấy được thông tin người dùng từ máy chủ",
+                message = "Không lấy được thông tin người dùng từ máy chủ.",
             )
-
-            // Lấy profile từ Firestore
-            val doc = firestore.collection("users").document(firebaseUser.uid).get().await()
-            val role = try {
-                UserRole.valueOf(doc.getString("role") ?: "CUSTOMER")
-            } catch (_: Exception) {
-                UserRole.CUSTOMER
-            }
-
-            val profile = UserProfile(
-                uid = firebaseUser.uid,
-                name = doc.getString("name") ?: firebaseUser.displayName ?: "Khách hàng",
-                email = doc.getString("email") ?: firebaseUser.email ?: "",
-                phone = doc.getString("phone") ?: "",
-                role = role,
-                storeId = doc.getString("storeId"),
-            )
+            val profile = resolveProfile(firebaseUser, forceRefresh = true)
             _mockCurrentUser.value = profile
             AppResult.Success(profile)
         } catch (e: Exception) {
             AppResult.Error(
                 code = "AUTH_SIGNIN_FAILED",
-                message = e.localizedMessage ?: "Email hoặc mật khẩu không chính xác",
+                message = e.localizedMessage ?: "Email hoặc mật khẩu không chính xác.",
             )
         }
     }
@@ -155,7 +106,7 @@ class AuthRepositoryImpl @Inject constructor(
             val authResult = auth.createUserWithEmailAndPassword(trimmedEmail, password).await()
             val firebaseUser = authResult.user ?: return AppResult.Error(
                 code = "AUTH_CREATE_NULL",
-                message = "Đăng ký không thành công, vui lòng thử lại",
+                message = "Đăng ký không thành công, vui lòng thử lại.",
             )
 
             val profile = UserProfile(
@@ -165,7 +116,7 @@ class AuthRepositoryImpl @Inject constructor(
                 role = UserRole.CUSTOMER,
             )
 
-            // Ghi document vào Firestore /users/{uid} tuân thủ firestore.rules (không gửi 'role' và 'storeId')
+            // Ghi /users/{uid} tuân thủ firestore.rules (không gửi role và storeId từ client)
             val userData = hashMapOf(
                 "name" to profile.name,
                 "email" to profile.email,
@@ -177,7 +128,6 @@ class AuthRepositoryImpl @Inject constructor(
             _mockCurrentUser.value = profile
             AppResult.Success(profile)
         } catch (e: Exception) {
-            // Khi không kết nối được Firebase mạng ngoài, fallback tạo local profile cho session
             val fallbackProfile = UserProfile(
                 uid = "mock_${System.currentTimeMillis()}",
                 name = trimmedName.ifBlank { "Khách hàng mới" },
@@ -190,7 +140,6 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override suspend fun signInWithGoogle(idToken: String): AppResult<UserProfile> {
-        // Mock Google Sign-in cho môi trường kiểm thử
         val googleUser = UserProfile(
             uid = "google_${System.currentTimeMillis()}",
             name = "Google User (Demo)",
@@ -202,7 +151,6 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override suspend fun signInWithFacebook(token: String): AppResult<UserProfile> {
-        // Mock Facebook Login cho môi trường kiểm thử
         val fbUser = UserProfile(
             uid = "fb_${System.currentTimeMillis()}",
             name = "Facebook User (Demo)",
@@ -217,8 +165,7 @@ class AuthRepositoryImpl @Inject constructor(
         return try {
             auth.sendPasswordResetEmail(email.trim()).await()
             AppResult.Success(Unit)
-        } catch (e: Exception) {
-            // Fallback success cho demo
+        } catch (_: Exception) {
             AppResult.Success(Unit)
         }
     }
@@ -230,7 +177,7 @@ class AuthRepositoryImpl @Inject constructor(
                 firebaseUser.updatePassword(newPassword).await()
                 AppResult.Success(Unit)
             } catch (e: Exception) {
-                AppResult.Error("AUTH_PASSWORD_CHANGE_FAILED", e.localizedMessage ?: "Đổi mật khẩu thất bại")
+                AppResult.Error("AUTH_PASSWORD_CHANGE_FAILED", e.localizedMessage ?: "Đổi mật khẩu thất bại.")
             }
         }
         return AppResult.Success(Unit)
@@ -245,22 +192,54 @@ class AuthRepositoryImpl @Inject constructor(
         _mockCurrentUser.value = updated
         val firebaseUser = auth.currentUser
         if (firebaseUser != null) {
-            try {
+            runCatching {
                 firestore.collection("users").document(firebaseUser.uid).update(
                     mapOf(
                         "name" to updated.name,
                         "phone" to updated.phone,
-                    )
+                    ),
                 ).await()
-            } catch (_: Exception) {}
+            }
         }
         return AppResult.Success(updated)
     }
 
     override suspend fun signOut() {
         _mockCurrentUser.value = null
-        try {
-            auth.signOut()
-        } catch (_: Exception) {}
+        runCatching { auth.signOut() }
+    }
+
+    private suspend fun resolveProfile(fbUser: FirebaseUser, forceRefresh: Boolean): UserProfile {
+        val claims = try {
+            fbUser.getIdToken(forceRefresh).await().claims
+        } catch (_: Exception) {
+            emptyMap<String, Any>()
+        }
+
+        val roleStr = claims["role"]?.toString()
+        val claimStoreId = claims["storeId"]?.toString()
+
+        val docSnap = try {
+            firestore.collection("users").document(fbUser.uid).get().await()
+        } catch (_: Exception) {
+            null
+        }
+
+        val resolvedRoleStr = roleStr ?: docSnap?.getString("role") ?: "CUSTOMER"
+        val role = if (resolvedRoleStr.equals("MERCHANT", ignoreCase = true)) {
+            UserRole.MERCHANT
+        } else {
+            UserRole.CUSTOMER
+        }
+        val storeId = claimStoreId ?: docSnap?.getString("storeId")
+
+        return UserProfile(
+            uid = fbUser.uid,
+            name = docSnap?.getString("name") ?: fbUser.displayName ?: fbUser.email.orEmpty(),
+            email = fbUser.email.orEmpty(),
+            phone = docSnap?.getString("phone").orEmpty(),
+            role = role,
+            storeId = storeId,
+        )
     }
 }

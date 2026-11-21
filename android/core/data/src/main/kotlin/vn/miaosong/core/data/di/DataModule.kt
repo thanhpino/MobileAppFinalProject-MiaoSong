@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.storage.FirebaseStorage
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -15,8 +16,14 @@ import vn.miaosong.core.data.local.CartDao
 import vn.miaosong.core.data.local.MiaoSongDatabase
 import vn.miaosong.core.data.repository.AuthRepositoryImpl
 import vn.miaosong.core.data.repository.CartRepositoryImpl
+import vn.miaosong.core.data.repository.MerchantCatalogRepositoryImpl
+import vn.miaosong.core.data.repository.OrderRepositoryImpl
+import vn.miaosong.core.data.repository.StoreRepositoryImpl
 import vn.miaosong.core.domain.AuthRepository
 import vn.miaosong.core.domain.CartRepository
+import vn.miaosong.core.domain.MerchantCatalogRepository
+import vn.miaosong.core.domain.OrderRepository
+import vn.miaosong.core.domain.StoreRepository
 import javax.inject.Singleton
 
 @Module
@@ -44,6 +51,10 @@ object DataProvideModule {
     @Provides
     @Singleton
     fun provideFunctions(): FirebaseFunctions = FirebaseFunctions.getInstance("asia-southeast1")
+
+    @Provides
+    @Singleton
+    fun provideStorage(): FirebaseStorage = FirebaseStorage.getInstance()
 }
 
 @Module
@@ -56,4 +67,16 @@ abstract class DataBindModule {
     @Binds
     @Singleton
     abstract fun bindAuthRepository(impl: AuthRepositoryImpl): AuthRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindStoreRepository(impl: StoreRepositoryImpl): StoreRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindMerchantCatalogRepository(impl: MerchantCatalogRepositoryImpl): MerchantCatalogRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindOrderRepository(impl: OrderRepositoryImpl): OrderRepository
 }

@@ -9,9 +9,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -94,30 +96,63 @@ fun MiaoPrimaryButton(
     }
 }
 
-/** Thẻ cảnh báo ghi chú đặc biệt (vàng) hoặc dị ứng (đỏ) dùng cho Màn hình Bếp (KDS) */
+/** Thẻ ghi chú & cảnh báo dị ứng đồng nhất UI Warm Savory Delivery cho Màn hình Bếp (KDS) */
 @Composable
 fun KitchenNoteBadge(
     note: String,
     isAllergy: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val bg = if (isAllergy) MiaoColors.KitchenAllergyBg else MiaoColors.KitchenNoteBg
-    val fg = if (isAllergy) MiaoColors.KitchenAllergyText else MiaoColors.OnSurface
-    val prefix = if (isAllergy) "🚫 DỊ ỨNG: " else "⚠️ GHI CHÚ: "
+    val bg = if (isAllergy) Color(0xFFFFF1F0) else Color(0xFFFFF8E6)
+    val accent = if (isAllergy) Color(0xFFD92D20) else Color(0xFFD97706)
+    val label = if (isAllergy) "DỊ ỨNG" else "GHI CHÚ"
+    val textColor = if (isAllergy) Color(0xFF7A1C16) else Color(0xFF5C3A00)
 
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = bg,
-        shape = RoundedCornerShape(10.dp),
-        border = BorderStroke(1.dp, fg.copy(alpha = 0.25f)),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.28f)),
     ) {
-        Text(
-            text = "$prefix$note",
-            color = fg,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(accent),
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Surface(
+                    color = accent.copy(alpha = 0.14f),
+                    shape = RoundedCornerShape(6.dp),
+                ) {
+                    Text(
+                        text = label,
+                        color = accent,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.6.sp,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                    )
+                }
+                Text(
+                    text = note,
+                    color = textColor,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
     }
 }
 
