@@ -960,39 +960,40 @@ private fun ActiveOrderFloatingPill(
                     }
                 }
                 Spacer(modifier = Modifier.width(10.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
                     Text(
                         text = "Đơn hàng đang giao đến bạn",
                         color = MiaoColors.OnSurface,
-                        fontSize = 12.5.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Surface(
-                        color = Color(0xFFFFEDD5),
+                        color = Color(0xFFFFE4CC),
                         shape = RoundedCornerShape(999.dp),
+                        border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.35f)),
                     ) {
                         Text(
-                            text = "Đang đến",
-                            color = MiaoColors.BrandOrange,
-                            fontSize = 9.5.sp,
-                            fontWeight = FontWeight.Bold,
+                            text = "● Đang đến",
+                            color = MiaoColors.BrandOrangeDark,
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.ExtraBold,
                             maxLines = 1,
                             softWrap = false,
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                         )
                     }
                 }
             }
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(10.dp))
             Text(
                 text = "Xem ngay >",
                 color = MiaoColors.BrandOrange,
-                fontSize = 12.sp,
+                fontSize = 12.5.sp,
                 fontWeight = FontWeight.ExtraBold,
                 maxLines = 1,
                 softWrap = false,
