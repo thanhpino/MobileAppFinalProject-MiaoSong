@@ -199,6 +199,21 @@ class OrderRepositoryImpl @Inject constructor(
         ),
     )
 
+    override suspend fun submitReview(
+        orderId: String,
+        stars: Int,
+        tags: List<String>,
+        comment: String,
+    ): AppResult<Unit> = callUnit(
+        "submitReview",
+        mapOf(
+            "orderId" to orderId,
+            "stars" to stars,
+            "tags" to tags,
+            "comment" to comment.trim(),
+        ),
+    )
+
     private suspend fun callUnit(name: String, payload: Map<String, Any?>): AppResult<Unit> {
         return try {
             functions.getHttpsCallable(name).call(payload).await()

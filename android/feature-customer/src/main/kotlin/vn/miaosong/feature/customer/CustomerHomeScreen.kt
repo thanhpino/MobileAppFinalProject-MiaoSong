@@ -147,11 +147,13 @@ fun CustomerHomeScreen(
         },
         bottomBar = {
             Column {
-                // Thanh nổi gọn gàng — thông tin tài xế & vị trí realtime nằm bên trong "Xem ngay >"
-                ActiveOrderFloatingPill(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    onClick = onOpenOrderTracking,
-                )
+                // Thanh nổi gọn gàng — ẩn khi đang ở tab Đơn hàng (vì đơn đang giao đã ở ngay trên cùng)
+                if (selectedTab != 2) {
+                    ActiveOrderFloatingPill(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        onClick = onOpenOrderTracking,
+                    )
+                }
                 NavigationBar(
                     containerColor = Color.White,
                     tonalElevation = 8.dp,
@@ -165,13 +167,7 @@ fun CustomerHomeScreen(
                     navItems.forEachIndexed { index, (label, icon) ->
                         NavigationBarItem(
                             selected = selectedTab == index,
-                            onClick = {
-                                if (index == 2) {
-                                    onOpenOrderTracking()
-                                } else {
-                                    selectedTab = index
-                                }
-                            },
+                            onClick = { selectedTab = index },
                             icon = { Icon(icon, contentDescription = label) },
                             label = {
                                 Text(
@@ -193,49 +189,56 @@ fun CustomerHomeScreen(
             }
         },
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            // 1. Thẻ mèo MiaoSong chào khách
-            item {
-                MiaoGreetingBanner(onClick = onTriggerLoadingPreview)
-            }
+        if (selectedTab == 2) {
+            CustomerOrdersTab(
+                onOpenOrderDetail = { onOpenOrderTracking() },
+                modifier = Modifier.padding(innerPadding),
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                // 1. Thẻ mèo MiaoSong chào khách
+                item {
+                    MiaoGreetingBanner(onClick = onTriggerLoadingPreview)
+                }
 
-            // 2. Thanh chọn địa chỉ giao hàng thoáng rộng (không bị cắt trên Top Bar)
-            item {
-                DeliveryAddressRow()
-            }
+                // 2. Thanh chọn địa chỉ giao hàng thoáng rộng (không bị cắt trên Top Bar)
+                item {
+                    DeliveryAddressRow()
+                }
 
-            // 3. Thanh tìm kiếm + Trending tags
-            item {
-                SearchAndTrendingSection()
-            }
+                // 3. Thanh tìm kiếm + Trending tags
+                item {
+                    SearchAndTrendingSection()
+                }
 
-            // 4. Lưới danh mục món ăn (2 hàng x 4 cột)
-            item {
-                QuickCategoryGrid()
-            }
+                // 4. Lưới danh mục món ăn (2 hàng x 4 cột)
+                item {
+                    QuickCategoryGrid()
+                }
 
-            // 5. Banner cam khuyến mãi
-            item {
-                PromoBannerCard(onClaimClick = onTriggerLoadingPreview)
-            }
+                // 5. Banner cam khuyến mãi
+                item {
+                    PromoBannerCard(onClaimClick = onTriggerLoadingPreview)
+                }
 
-            // 6. Thanh lọc quán
-            item {
-                FilterSortPillsRow()
-            }
+                // 6. Thanh lọc quán
+                item {
+                    FilterSortPillsRow()
+                }
 
-            // 7. Danh sách quán ăn D2C realtime từ Cloud Firestore
-            items(storeCards, key = { it.id }) { store ->
-                StoreFeedCard(
-                    store = store,
-                    onClick = onTriggerLoadingPreview,
-                )
+                // 7. Danh sách quán ăn D2C realtime từ Cloud Firestore
+                items(storeCards, key = { it.id }) { store ->
+                    StoreFeedCard(
+                        store = store,
+                        onClick = onTriggerLoadingPreview,
+                    )
+                }
             }
         }
     }
