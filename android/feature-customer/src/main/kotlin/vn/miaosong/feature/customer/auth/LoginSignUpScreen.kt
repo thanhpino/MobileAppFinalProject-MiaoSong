@@ -419,16 +419,22 @@ private fun MascotBrandHeader(modifier: Modifier = Modifier) {
                     .blur(18.dp),
             )
 
-            // Vòng tròn chứa Mascot Mèo Thần Tài (phóng to nổi bật)
+            // Vòng tròn chứa Mascot Mèo Thần Tài (nền cam rực rỡ thương hiệu)
             Surface(
                 modifier = Modifier
                     .size(116.dp)
                     .shadow(elevation = 6.dp, shape = CircleShape),
                 shape = CircleShape,
-                color = Color.White,
+                color = MiaoColors.BrandOrange,
             ) {
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFFFF6B00), Color(0xFFFF3800)),
+                            ),
+                        ),
                     contentAlignment = Alignment.Center,
                 ) {
                     MiaoAnimatedCatLogo(

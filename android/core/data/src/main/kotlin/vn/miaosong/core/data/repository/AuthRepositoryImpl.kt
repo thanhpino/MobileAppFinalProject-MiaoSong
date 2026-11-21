@@ -1,9 +1,16 @@
 package vn.miaosong.core.data.repository
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
+import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageMetadata
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,13 +21,17 @@ import vn.miaosong.core.common.AppResult
 import vn.miaosong.core.domain.AuthRepository
 import vn.miaosong.core.model.UserProfile
 import vn.miaosong.core.model.UserRole
+import java.io.ByteArrayOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.max
+import kotlin.math.roundToInt
 
 @Singleton
 class AuthRepositoryImpl @Inject constructor(
     private val auth: FirebaseAuth,
     private val firestore: FirebaseFirestore,
+    private val storage: FirebaseStorage,
 ) : AuthRepository {
 
     // Fallback state flow cho tài khoản demo hoặc chạy offline
@@ -121,6 +132,7 @@ class AuthRepositoryImpl @Inject constructor(
                 "name" to profile.name,
                 "email" to profile.email,
                 "phone" to "",
+                "avatarUrl" to "",
                 "createdAt" to FieldValue.serverTimestamp(),
             )
             firestore.collection("users").document(firebaseUser.uid).set(userData).await()
@@ -128,45 +140,42 @@ class AuthRepositoryImpl @Inject constructor(
             _mockCurrentUser.value = profile
             AppResult.Success(profile)
         } catch (e: Exception) {
-            val fallbackProfile = UserProfile(
-                uid = "mock_${System.currentTimeMillis()}",
-                name = trimmedName.ifBlank { "Khách hàng mới" },
-                email = trimmedEmail,
-                role = UserRole.CUSTOMER,
+            val message = when (e) {
+                is FirebaseAuthUserCollisionException -> "Email này đã được sử dụng. Vui lòng đăng nhập hoặc chọn email khác."
+                is FirebaseAuthWeakPasswordException -> "Mật khẩu quá yếu. Vui lòng đặt mật khẩu tối thiểu 6 ký tự."
+                is FirebaseAuthInvalidCredentialsException -> "Định dạng email hoặc mật khẩu không hợp lệ."
+                else -> e.localizedMessage ?: "Đăng ký không thành công. Vui lòng thử lại."
+            }
+            AppResult.Error(
+                code = "AUTH_SIGNUP_FAILED",
+                message = message,
             )
-            _mockCurrentUser.value = fallbackProfile
-            AppResult.Success(fallbackProfile)
         }
     }
 
     override suspend fun signInWithGoogle(idToken: String): AppResult<UserProfile> {
-        val googleUser = UserProfile(
-            uid = "google_${System.currentTimeMillis()}",
-            name = "Google User (Demo)",
-            email = "demo.google@gmail.com",
-            role = UserRole.CUSTOMER,
+        return AppResult.Error(
+            code = "AUTH_NOT_IMPLEMENTED",
+            message = "Tính năng đăng nhập qua Google đang được phát triển (Sắp ra mắt).",
         )
-        _mockCurrentUser.value = googleUser
-        return AppResult.Success(googleUser)
     }
 
     override suspend fun signInWithFacebook(token: String): AppResult<UserProfile> {
-        val fbUser = UserProfile(
-            uid = "fb_${System.currentTimeMillis()}",
-            name = "Facebook User (Demo)",
-            email = "demo.facebook@fb.me",
-            role = UserRole.CUSTOMER,
+        return AppResult.Error(
+            code = "AUTH_NOT_IMPLEMENTED",
+            message = "Tính năng đăng nhập qua Facebook đang được phát triển (Sắp ra mắt).",
         )
-        _mockCurrentUser.value = fbUser
-        return AppResult.Success(fbUser)
     }
 
     override suspend fun sendPasswordResetEmail(email: String): AppResult<Unit> {
         return try {
             auth.sendPasswordResetEmail(email.trim()).await()
             AppResult.Success(Unit)
-        } catch (_: Exception) {
-            AppResult.Success(Unit)
+        } catch (e: Exception) {
+            AppResult.Error(
+                code = "AUTH_RESET_FAILED",
+                message = e.localizedMessage ?: "Gửi email khôi phục mật khẩu thất bại.",
+            )
         }
     }
 
@@ -180,7 +189,7 @@ class AuthRepositoryImpl @Inject constructor(
                 AppResult.Error("AUTH_PASSWORD_CHANGE_FAILED", e.localizedMessage ?: "Đổi mật khẩu thất bại.")
             }
         }
-        return AppResult.Success(Unit)
+        return AppResult.Error("AUTH_USER_NULL", "Chưa đăng nhập.")
     }
 
     override suspend fun updateProfile(name: String, phone: String): AppResult<UserProfile> {
@@ -192,21 +201,77 @@ class AuthRepositoryImpl @Inject constructor(
         _mockCurrentUser.value = updated
         val firebaseUser = auth.currentUser
         if (firebaseUser != null) {
-            runCatching {
+            try {
                 firestore.collection("users").document(firebaseUser.uid).update(
                     mapOf(
                         "name" to updated.name,
                         "phone" to updated.phone,
                     ),
                 ).await()
+            } catch (e: Exception) {
+                return AppResult.Error(
+                    code = "PROFILE_UPDATE_FAILED",
+                    message = e.localizedMessage ?: "Cập nhật thông tin thất bại.",
+                )
             }
         }
         return AppResult.Success(updated)
     }
 
+    override suspend fun uploadAvatar(imageBytes: ByteArray): AppResult<String> {
+        val firebaseUser = auth.currentUser ?: return AppResult.Error(
+            code = "UNAUTHENTICATED",
+            message = "Vui lòng đăng nhập để tải ảnh đại diện.",
+        )
+        return try {
+            val optimizedBytes = compressImageIfNeeded(imageBytes)
+            val ref = storage.reference.child("users/${firebaseUser.uid}/avatar.jpg")
+            val metadata = StorageMetadata.Builder()
+                .setContentType("image/jpeg")
+                .build()
+            ref.putBytes(optimizedBytes, metadata).await()
+            val url = ref.downloadUrl.await().toString()
+
+            firestore.collection("users").document(firebaseUser.uid).update("avatarUrl", url).await()
+
+            val current = _mockCurrentUser.value
+            if (current != null) {
+                _mockCurrentUser.value = current.copy(avatarUrl = url)
+            }
+            AppResult.Success(url)
+        } catch (e: Exception) {
+            AppResult.Error(
+                code = "UPLOAD_AVATAR_FAILED",
+                message = e.localizedMessage ?: "Tải ảnh đại diện thất bại.",
+            )
+        }
+    }
+
     override suspend fun signOut() {
         _mockCurrentUser.value = null
         runCatching { auth.signOut() }
+    }
+
+    private fun compressImageIfNeeded(rawBytes: ByteArray): ByteArray {
+        val decoded = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size) ?: return rawBytes
+        val maxDim = 800
+        val longestSide = max(decoded.width, decoded.height)
+        val scaled = if (longestSide > maxDim) {
+            val ratio = maxDim.toFloat() / longestSide.toFloat()
+            Bitmap.createScaledBitmap(
+                decoded,
+                (decoded.width * ratio).roundToInt().coerceAtLeast(1),
+                (decoded.height * ratio).roundToInt().coerceAtLeast(1),
+                true,
+            )
+        } else {
+            decoded
+        }
+        val out = ByteArrayOutputStream()
+        scaled.compress(Bitmap.CompressFormat.JPEG, 82, out)
+        if (scaled !== decoded) scaled.recycle()
+        decoded.recycle()
+        return out.toByteArray()
     }
 
     private suspend fun resolveProfile(fbUser: FirebaseUser, forceRefresh: Boolean): UserProfile {
@@ -232,6 +297,7 @@ class AuthRepositoryImpl @Inject constructor(
             UserRole.CUSTOMER
         }
         val storeId = claimStoreId ?: docSnap?.getString("storeId")
+        val avatarUrl = docSnap?.getString("avatarUrl") ?: fbUser.photoUrl?.toString().orEmpty()
 
         return UserProfile(
             uid = fbUser.uid,
@@ -240,6 +306,7 @@ class AuthRepositoryImpl @Inject constructor(
             phone = docSnap?.getString("phone").orEmpty(),
             role = role,
             storeId = storeId,
+            avatarUrl = avatarUrl,
         )
     }
 }
