@@ -178,21 +178,27 @@ class OrderTrackingViewModel @Inject constructor(
         storeRepository.observeStore(storeId)
     }
 
+    private val remoteReviewsFlow = currentUserFlow.flatMapLatest { user ->
+        if (user == null) flowOf(emptyMap()) else orderRepository.observeCustomerReviews(user.uid)
+    }
+
     val uiState: StateFlow<OrderTrackingUiState> = combine(
         liveOrderFlow,
         liveStoreFlow,
         currentUserFlow,
+        remoteReviewsFlow,
         submittedStarsState,
-        feedbackState,
-    ) { order, store, user, stars, msg ->
+    ) { order, store, user, remoteReviews, localStars ->
+        val resolvedOrder = order ?: buildFallbackTrackingOrder()
         OrderTrackingUiState(
-            order = order ?: buildFallbackTrackingOrder(),
+            order = resolvedOrder,
             store = store,
             customerName = user?.name?.takeIf { it.isNotBlank() } ?: "Khách hàng",
             customerAvatarUrl = null,
-            submittedStars = stars,
-            feedbackMessage = msg,
+            submittedStars = localStars ?: remoteReviews[resolvedOrder.id],
         )
+    }.combine(feedbackState) { state, msg ->
+        state.copy(feedbackMessage = msg)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
