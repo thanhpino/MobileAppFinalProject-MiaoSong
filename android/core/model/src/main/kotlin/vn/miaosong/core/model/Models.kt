@@ -44,6 +44,7 @@ data class UserProfile(
     val phone: String = "",
     val role: UserRole = UserRole.CUSTOMER,
     val storeId: String? = null,
+    val avatarUrl: String = "",
 )
 
 @Serializable

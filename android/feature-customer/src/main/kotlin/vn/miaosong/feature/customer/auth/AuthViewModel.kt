@@ -20,8 +20,8 @@ enum class AuthMode {
 
 data class AuthUiState(
     val mode: AuthMode = AuthMode.LOGIN,
-    val email: String = "customer@miaosong.vn",
-    val password: String = "Password123!",
+    val email: String = "",
+    val password: String = "",
     val name: String = "",
     val confirmPassword: String = "",
     val rememberMe: Boolean = true,
