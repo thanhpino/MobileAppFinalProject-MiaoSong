@@ -196,6 +196,7 @@ private val DEMO_STORES = listOf(
  */
 @Composable
 fun CustomerHomeScreen(
+    showMerchantSwitch: Boolean = false,
     onSwitchToMerchantPreview: () -> Unit = {},
     onTriggerLoadingPreview: () -> Unit = {},
     onOpenOrderTracking: (String?) -> Unit = {},
@@ -249,6 +250,8 @@ fun CustomerHomeScreen(
                 onOpenCart = onOpenCart,
                 unreadNotificationCount = uiState.unreadNotificationCount,
                 onOpenNotifications = { showNotificationsSheet = true },
+                showMerchantSwitch = showMerchantSwitch,
+                onSwitchToMerchant = onSwitchToMerchantPreview,
             )
         },
         bottomBar = {
@@ -517,6 +520,8 @@ private fun StitchTopNavHeader(
     onOpenCart: () -> Unit = {},
     unreadNotificationCount: Int = 0,
     onOpenNotifications: () -> Unit = {},
+    showMerchantSwitch: Boolean = false,
+    onSwitchToMerchant: () -> Unit = {},
 ) {
     Surface(
         color = Color.White,
@@ -605,6 +610,36 @@ private fun StitchTopNavHeader(
                                     .size(8.dp)
                                     .clip(CircleShape)
                                     .background(MiaoColors.BrandOrange),
+                            )
+                        }
+                    }
+                }
+
+                // Nút quay lại Chế độ Quán dành cho tài khoản Chủ quán (MERCHANT)
+                if (showMerchantSwitch) {
+                    Surface(
+                        color = MiaoColors.BrandOrange,
+                        shape = RoundedCornerShape(999.dp),
+                        modifier = Modifier.clickable { onSwitchToMerchant() },
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Storefront,
+                                contentDescription = "Chế độ Quán",
+                                tint = Color.White,
+                                modifier = Modifier.size(15.dp),
+                            )
+                            Text(
+                                text = "Quán",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false,
                             )
                         }
                     }

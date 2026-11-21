@@ -1,6 +1,7 @@
 package vn.miaosong.app
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color as AndroidColor
 import android.os.Build
@@ -15,6 +16,7 @@ import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,6 +26,7 @@ import androidx.compose.ui.Modifier
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import vn.miaosong.core.designsystem.components.MiaoLoadingOverlay
 import vn.miaosong.core.designsystem.theme.MiaoSongTheme
 import vn.miaosong.core.domain.AuthRepository
@@ -43,12 +46,25 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var authRepository: AuthRepository
 
+    private val openMerchantKdsSignal = MutableStateFlow(0)
+
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { /* Kết quả cấp quyền thông báo Android 13+ */ }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra("open_merchant_kds", false)) {
+            openMerchantKdsSignal.value += 1
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (intent?.getBooleanExtra("open_merchant_kds", false) == true) {
+            openMerchantKdsSignal.value += 1
+        }
         requestNotificationPermissionIfNeeded()
         MiaoMessagingService.syncCurrentToken()
         enableEdgeToEdge(
@@ -61,6 +77,7 @@ class MainActivity : ComponentActivity() {
             MiaoSongTheme {
                 val hasLoggedInUser = remember { FirebaseAuth.getInstance().currentUser != null }
                 var activeRole by rememberSaveable { mutableStateOf(UserRole.CUSTOMER) }
+                var accountRole by rememberSaveable { mutableStateOf(UserRole.CUSTOMER) }
                 var showOrderTracking by rememberSaveable { mutableStateOf(false) }
                 var trackingOrderId by rememberSaveable { mutableStateOf<String?>(null) }
                 var showAuthScreen by rememberSaveable { mutableStateOf(!hasLoggedInUser) }
@@ -68,7 +85,22 @@ class MainActivity : ComponentActivity() {
                 var showCartScreen by rememberSaveable { mutableStateOf(false) }
                 var selectedStoreId by rememberSaveable { mutableStateOf<String?>(null) }
                 var homeInitialTab by rememberSaveable { mutableStateOf(0) }
+                var merchantInitialTab by rememberSaveable { mutableStateOf(0) }
                 var isLoading by rememberSaveable { mutableStateOf(false) }
+                val kdsSignal by openMerchantKdsSignal.collectAsState()
+
+                // Khi chạm vào thông báo "Có đơn hàng mới" -> mở thẳng Tab Bếp (KDS) ở Chế độ Quán
+                LaunchedEffect(kdsSignal) {
+                    if (kdsSignal > 0) {
+                        activeRole = UserRole.MERCHANT
+                        merchantInitialTab = 2
+                        showAuthScreen = false
+                        showProfileScreen = false
+                        showCartScreen = false
+                        showOrderTracking = false
+                        selectedStoreId = null
+                    }
+                }
                 var loadingMessage by rememberSaveable {
                     mutableStateOf("🍜 Tinh hoa ẩm thực Việt ✨")
                 }
@@ -77,9 +109,11 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     authRepository.observeCurrentUser().collect { user ->
                         if (user != null) {
+                            accountRole = user.role
                             activeRole = user.role
                             showAuthScreen = false
                         } else {
+                            accountRole = UserRole.CUSTOMER
                             showAuthScreen = true
                             showProfileScreen = false
                         }
@@ -115,6 +149,7 @@ class MainActivity : ComponentActivity() {
                     when {
                         showAuthScreen -> LoginSignUpScreen(
                             onAuthSuccess = { user ->
+                                accountRole = user.role
                                 activeRole = user.role
                                 showAuthScreen = false
                                 MiaoMessagingService.syncCurrentToken()
@@ -136,6 +171,8 @@ class MainActivity : ComponentActivity() {
                             },
                         )
                         activeRole == UserRole.MERCHANT -> MerchantDashboardScreen(
+                            initialTab = merchantInitialTab,
+                            kdsNavigationNonce = kdsSignal,
                             onSwitchToCustomerPreview = {
                                 loadingMessage = "Đang quay lại trang chủ MiaoSong..."
                                 loadingDurationMs = 700L
@@ -166,6 +203,7 @@ class MainActivity : ComponentActivity() {
                             onOpenCart = { showCartScreen = true },
                         )
                         else -> CustomerHomeScreen(
+                            showMerchantSwitch = accountRole == UserRole.MERCHANT,
                             onSwitchToMerchantPreview = {
                                 loadingMessage = "Đang mở không gian quản lý Quán..."
                                 loadingDurationMs = 900L
