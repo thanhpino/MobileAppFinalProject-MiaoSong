@@ -21,6 +21,8 @@ import vn.miaosong.core.designsystem.theme.MiaoSongTheme
 import vn.miaosong.core.model.UserRole
 import vn.miaosong.feature.customer.CustomerHomeScreen
 import vn.miaosong.feature.customer.OrderTrackingScreen
+import vn.miaosong.feature.customer.auth.LoginSignUpScreen
+import vn.miaosong.feature.customer.profile.ProfileScreen
 import vn.miaosong.feature.merchant.MerchantDashboardScreen
 
 @AndroidEntryPoint
@@ -37,6 +39,9 @@ class MainActivity : ComponentActivity() {
             MiaoSongTheme {
                 var activeRole by rememberSaveable { mutableStateOf(UserRole.CUSTOMER) }
                 var showOrderTracking by rememberSaveable { mutableStateOf(false) }
+                var showAuthScreen by rememberSaveable { mutableStateOf(true) }
+                var showProfileScreen by rememberSaveable { mutableStateOf(false) }
+                var homeInitialTab by rememberSaveable { mutableStateOf(0) }
                 var isLoading by rememberSaveable { mutableStateOf(true) }
                 var loadingMessage by rememberSaveable {
                     mutableStateOf("MiaoSong đang chuẩn bị món ngon cho bạn...")
@@ -52,6 +57,23 @@ class MainActivity : ComponentActivity() {
 
                 Box(modifier = Modifier.fillMaxSize()) {
                     when {
+                        showAuthScreen -> LoginSignUpScreen(
+                            onAuthSuccess = { user ->
+                                activeRole = user.role
+                                showAuthScreen = false
+                            },
+                        )
+                        showProfileScreen -> ProfileScreen(
+                            onBack = { showProfileScreen = false },
+                            onLoggedOut = {
+                                showProfileScreen = false
+                                showAuthScreen = true
+                            },
+                            onOpenOrderHistory = {
+                                showProfileScreen = false
+                                homeInitialTab = 2
+                            },
+                        )
                         activeRole == UserRole.MERCHANT -> MerchantDashboardScreen(
                             onSwitchToCustomerPreview = {
                                 loadingMessage = "Đang quay lại trang chủ MiaoSong..."
@@ -76,6 +98,8 @@ class MainActivity : ComponentActivity() {
                                 isLoading = true
                             },
                             onOpenOrderTracking = { showOrderTracking = true },
+                            onOpenProfile = { showProfileScreen = true },
+                            initialTab = homeInitialTab,
                         )
                     }
 

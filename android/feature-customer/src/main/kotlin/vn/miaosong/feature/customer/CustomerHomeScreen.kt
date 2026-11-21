@@ -125,9 +125,11 @@ fun CustomerHomeScreen(
     onSwitchToMerchantPreview: () -> Unit,
     onTriggerLoadingPreview: () -> Unit = {},
     onOpenOrderTracking: () -> Unit = {},
+    onOpenProfile: () -> Unit = {},
+    initialTab: Int = 0,
     viewModel: CustomerHomeViewModel = hiltViewModel(),
 ) {
-    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    var selectedTab by rememberSaveable(initialTab) { mutableIntStateOf(initialTab) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     // Map dữ liệu thật từ Cloud Firestore `miaosong-pro` sang StoreCard (fallback DEMO_STORES khi đang tải)
@@ -167,7 +169,13 @@ fun CustomerHomeScreen(
                     navItems.forEachIndexed { index, (label, icon) ->
                         NavigationBarItem(
                             selected = selectedTab == index,
-                            onClick = { selectedTab = index },
+                            onClick = {
+                                if (index == 3) {
+                                    onOpenProfile()
+                                } else {
+                                    selectedTab = index
+                                }
+                            },
                             icon = { Icon(icon, contentDescription = label) },
                             label = {
                                 Text(
