@@ -1,5 +1,6 @@
 package vn.miaosong.feature.customer
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -7,6 +8,20 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
+import android.view.MotionEvent
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import org.osmdroid.config.Configuration
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.BoundingBox
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.CustomZoomButtonsController
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Polyline
+import java.net.HttpURLConnection
+import java.net.URL
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -87,12 +102,6 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Marker
-import org.osmdroid.views.overlay.Polyline
 import vn.miaosong.core.common.AppResult
 import vn.miaosong.core.common.MoneyFormatter
 import vn.miaosong.core.designsystem.components.MiaoAnimatedCatLogo
@@ -304,10 +313,39 @@ fun OrderTrackingScreen(
         OrderStatus.COMPLETED -> 1.0
         else -> 0.0
     }
-    val driverLat = pickupLat + (dropoffLat - pickupLat) * driverProgress
-    val driverLng = pickupLng + (dropoffLng - pickupLng) * driverProgress
+    // Tải tuyến đường bộ ngắn nhất thực tế qua OSRM (OpenStreetMap Routing) — không vẽ đường chim bay qua sông
+    var roadRoutePoints by remember { mutableStateOf<List<GeoPoint>>(emptyList()) }
+    var roadTotalMeters by remember { mutableStateOf<Double?>(null) }
 
-    val remainingKm = haversineKm(driverLat, driverLng, dropoffLat, dropoffLng)
+    LaunchedEffect(pickupLat, pickupLng, dropoffLat, dropoffLng) {
+        val fetched = fetchOsrmShortestRoute(pickupLat, pickupLng, dropoffLat, dropoffLng)
+        if (fetched != null && fetched.first.size >= 2) {
+            roadRoutePoints = fetched.first
+            roadTotalMeters = fetched.second
+        } else {
+            roadRoutePoints = listOf(GeoPoint(pickupLat, pickupLng), GeoPoint(dropoffLat, dropoffLng))
+            roadTotalMeters = null
+        }
+    }
+
+    // Đặt vị trí tài xế bám chính xác trên tuyến đường bộ thực tế theo tiến độ đơn hàng
+    val driverGeoPoint = remember(roadRoutePoints, driverProgress, pickupLat, pickupLng, dropoffLat, dropoffLng) {
+        if (roadRoutePoints.size >= 2) {
+            val idx = ((roadRoutePoints.size - 1) * driverProgress).toInt()
+                .coerceIn(0, roadRoutePoints.size - 1)
+            roadRoutePoints[idx]
+        } else {
+            val dLat = pickupLat + (dropoffLat - pickupLat) * driverProgress
+            val dLng = pickupLng + (dropoffLng - pickupLng) * driverProgress
+            GeoPoint(dLat, dLng)
+        }
+    }
+
+    val remainingKm = if (roadTotalMeters != null) {
+        ((roadTotalMeters!! / 1000.0) * (1.0 - driverProgress)).coerceAtLeast(0.0)
+    } else {
+        haversineKm(driverGeoPoint.latitude, driverGeoPoint.longitude, dropoffLat, dropoffLng)
+    }
     val etaMinutes = ((remainingKm / 0.35).toInt()).coerceAtLeast(if (order.status == OrderStatus.COMPLETED) 0 else 2)
     val elapsedMinutes = if (order.createdAtEpochMs > 0L) {
         ((System.currentTimeMillis() - order.createdAtEpochMs) / 60_000L).coerceAtLeast(0L)
@@ -398,7 +436,10 @@ fun OrderTrackingScreen(
                         OsmDeliveryMapView(
                             pickup = GeoPoint(pickupLat, pickupLng),
                             dropoff = GeoPoint(dropoffLat, dropoffLng),
-                            driver = GeoPoint(driverLat, driverLng),
+                            driver = driverGeoPoint,
+                            routePoints = roadRoutePoints.ifEmpty {
+                                listOf(GeoPoint(pickupLat, pickupLng), driverGeoPoint, GeoPoint(dropoffLat, dropoffLng))
+                            },
                             storeName = order.storeName.ifBlank { "Quán MiaoSong" },
                             dropoffLabel = order.address.fullText.ifBlank { "Điểm giao hàng" },
                             driverName = order.delivery.driver?.name,
@@ -738,11 +779,13 @@ fun OrderTrackingScreen(
     }
 }
 
+@SuppressLint("ClickableViewAccessibility")
 @Composable
 private fun OsmDeliveryMapView(
     pickup: GeoPoint,
     dropoff: GeoPoint,
     driver: GeoPoint,
+    routePoints: List<GeoPoint>,
     storeName: String,
     dropoffLabel: String,
     driverName: String?,
@@ -751,6 +794,7 @@ private fun OsmDeliveryMapView(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    var lastRecenterCount by remember { mutableIntStateOf(-1) }
 
     // Cấu hình OSMDroid dùng cache nội bộ app (không cần quyền WRITE_EXTERNAL_STORAGE trên Android 11+)
     remember {
@@ -766,7 +810,20 @@ private fun OsmDeliveryMapView(
         MapView(context).apply {
             setTileSource(TileSourceFactory.MAPNIK)
             setMultiTouchControls(true)
-            controller.setZoom(15.0)
+            zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
+            controller.setZoom(14.5)
+            // Cho phép kéo/lướt bản đồ tự do cả lên-xuống & trái-phải dù nằm trong Column có verticalScroll
+            setOnTouchListener { view, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
+                        view.parent?.requestDisallowInterceptTouchEvent(true)
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        view.parent?.requestDisallowInterceptTouchEvent(false)
+                    }
+                }
+                false
+            }
         }
     }
 
@@ -791,11 +848,13 @@ private fun OsmDeliveryMapView(
         update = { map ->
             map.overlays.clear()
 
-            // 1. Đường nối Quán -> Tài xế -> Khách
+            // 1. Tuyến đường bộ ngắn nhất từ OSRM (bám theo đường phố thật, không bay qua sông)
             val routeLine = Polyline(map).apply {
-                setPoints(listOf(pickup, driver, dropoff))
+                setPoints(routePoints)
                 outlinePaint.color = MiaoColors.BrandOrange.toArgb()
                 outlinePaint.strokeWidth = 9f
+                outlinePaint.strokeCap = Paint.Cap.ROUND
+                outlinePaint.strokeJoin = Paint.Join.ROUND
                 outlinePaint.isAntiAlias = true
             }
             map.overlays.add(routeLine)
@@ -818,7 +877,7 @@ private fun OsmDeliveryMapView(
             }
             map.overlays.add(dropoffMarker)
 
-            // 4. Ghim Tài xế Lalamove (Cam đậm)
+            // 4. Ghim Tài xế Lalamove (bám trên đường bộ thực tế)
             val driverMarker = Marker(map).apply {
                 position = driver
                 title = driverName?.let { "Tài xế Lalamove: $it" } ?: "Tài xế Lalamove"
@@ -827,16 +886,63 @@ private fun OsmDeliveryMapView(
             }
             map.overlays.add(driverMarker)
 
-            // Căn giữa bản đồ giữa Quán & Khách
-            val midLat = (pickup.latitude + dropoff.latitude) / 2.0
-            val midLng = (pickup.longitude + dropoff.longitude) / 2.0
-            map.controller.setCenter(GeoPoint(midLat, midLng))
-            if (recenterTrigger > 0) {
-                map.controller.setZoom(15.0)
+            // Chỉ tự động căn giữa lần đầu hoặc khi người dùng bấm nút căn giữa (để user tự do kéo map)
+            if (lastRecenterCount != recenterTrigger) {
+                lastRecenterCount = recenterTrigger
+                val allPts = (routePoints + listOf(pickup, dropoff, driver))
+                val north = allPts.maxOf { it.latitude }
+                val south = allPts.minOf { it.latitude }
+                val east = allPts.maxOf { it.longitude }
+                val west = allPts.minOf { it.longitude }
+                val latPad = ((north - south) * 0.25).coerceAtLeast(0.002)
+                val lngPad = ((east - west) * 0.25).coerceAtLeast(0.002)
+                val box = BoundingBox(north + latPad, east + lngPad, south - latPad, west - lngPad)
+                map.post {
+                    runCatching { map.zoomToBoundingBox(box, true, 48) }
+                }
             }
             map.invalidate()
         },
     )
+}
+
+/** Gọi OSRM OpenStreetMap Routing API lấy đường bộ ngắn nhất thực tế (trả về danh sách tọa độ + tổng mét) */
+private suspend fun fetchOsrmShortestRoute(
+    startLat: Double,
+    startLng: Double,
+    endLat: Double,
+    endLng: Double,
+): Pair<List<GeoPoint>, Double>? = withContext(Dispatchers.IO) {
+    runCatching {
+        val urlStr = "https://router.project-osrm.org/route/v1/driving/" +
+            "$startLng,$startLat;$endLng,$endLat?overview=full&geometries=geojson"
+        val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 6_000
+            readTimeout = 6_000
+            setRequestProperty("User-Agent", "MiaoSongAndroid/1.0")
+        }
+        try {
+            if (conn.responseCode != 200) return@withContext null
+            val body = conn.inputStream.bufferedReader().use { it.readText() }
+            val json = JSONObject(body)
+            val routes = json.optJSONArray("routes") ?: return@withContext null
+            if (routes.length() == 0) return@withContext null
+            val firstRoute = routes.getJSONObject(0)
+            val distanceMeters = firstRoute.optDouble("distance", 0.0)
+            val coords = firstRoute.getJSONObject("geometry").getJSONArray("coordinates")
+            val pts = ArrayList<GeoPoint>(coords.length())
+            for (i in 0 until coords.length()) {
+                val c = coords.getJSONArray(i)
+                val lng = c.getDouble(0)
+                val lat = c.getDouble(1)
+                pts.add(GeoPoint(lat, lng))
+            }
+            pts to distanceMeters
+        } finally {
+            conn.disconnect()
+        }
+    }.getOrNull()
 }
 
 private fun createCirclePinDrawable(context: Context, fillColor: Int, label: String): BitmapDrawable {
