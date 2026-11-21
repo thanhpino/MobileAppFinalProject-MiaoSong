@@ -136,6 +136,21 @@ class MerchantCatalogRepositoryImpl @Inject constructor(
         ).await()
     }
 
+    override suspend fun updateStoreInfo(
+        storeId: String,
+        name: String,
+        address: String,
+        phone: String,
+    ): AppResult<Unit> = runCatchingResult {
+        storeDoc(storeId).update(
+            mapOf(
+                "name" to name.trim(),
+                "address" to address.trim(),
+                "phone" to phone.trim(),
+            ),
+        ).await()
+    }
+
     override suspend fun uploadStoreAvatar(storeId: String, imageBytes: ByteArray): AppResult<String> {
         return try {
             val optimizedBytes = compressImageIfNeeded(imageBytes)

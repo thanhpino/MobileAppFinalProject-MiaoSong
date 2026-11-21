@@ -11,6 +11,7 @@ import vn.miaosong.core.model.MenuItem
 import vn.miaosong.core.model.Order
 import vn.miaosong.core.model.OrderStatus
 import vn.miaosong.core.model.PaymentMethod
+import vn.miaosong.core.model.Review
 import vn.miaosong.core.model.Store
 import vn.miaosong.core.model.UserProfile
 import vn.miaosong.core.model.Voucher
@@ -27,6 +28,7 @@ interface StoreRepository {
     fun observeCategories(storeId: String): Flow<List<MenuCategory>>
     fun observeMenuItems(storeId: String): Flow<List<MenuItem>>
     fun observeVouchers(storeId: String): Flow<List<Voucher>>
+    fun observeStoreReviews(storeId: String): Flow<List<Review>>
 }
 
 interface MerchantCatalogRepository {
@@ -39,6 +41,7 @@ interface MerchantCatalogRepository {
     suspend fun toggleVoucherActive(storeId: String, voucherId: String, isActive: Boolean): AppResult<Unit>
     suspend fun deleteVoucher(storeId: String, voucherId: String): AppResult<Unit>
     suspend fun updateStoreStatus(storeId: String, status: ManualStoreStatus, busyUntilEpochMs: Long?): AppResult<Unit>
+    suspend fun updateStoreInfo(storeId: String, name: String, address: String, phone: String): AppResult<Unit>
     suspend fun uploadStoreAvatar(storeId: String, imageBytes: ByteArray): AppResult<String>
     suspend fun uploadMenuItemImage(storeId: String, itemId: String, imageBytes: ByteArray): AppResult<String>
 }

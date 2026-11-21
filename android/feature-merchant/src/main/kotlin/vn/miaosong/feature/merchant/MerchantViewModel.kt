@@ -19,6 +19,7 @@ import vn.miaosong.core.model.MenuCategory
 import vn.miaosong.core.model.MenuItem
 import vn.miaosong.core.model.Order
 import vn.miaosong.core.model.OrderStatus
+import vn.miaosong.core.model.Review
 import vn.miaosong.core.model.Store
 import vn.miaosong.core.model.UserProfile
 import vn.miaosong.core.model.Voucher
@@ -33,6 +34,7 @@ data class MerchantUiState(
     val menuItems: List<MenuItem> = emptyList(),
     val vouchers: List<Voucher> = emptyList(),
     val orders: List<Order> = emptyList(),
+    val reviews: List<Review> = emptyList(),
     val isBusyAction: Boolean = false,
     val feedbackMessage: String? = null,
 )
@@ -70,6 +72,8 @@ class MerchantViewModel @Inject constructor(
         )
     }.combine(orderRepository.observeStoreOrders(storeId)) { state, orders ->
         state.copy(orders = orders)
+    }.combine(storeRepository.observeStoreReviews(storeId)) { state, reviews ->
+        state.copy(reviews = reviews)
     }.combine(busyState) { state, busy ->
         state.copy(isBusyAction = busy)
     }.combine(feedbackState) { state, msg ->
@@ -149,6 +153,12 @@ class MerchantViewModel @Inject constructor(
         }
         runAction(msg) {
             catalogRepository.updateStoreStatus(uiState.value.storeId, status, until)
+        }
+    }
+
+    fun updateStoreInfo(name: String, address: String, phone: String) {
+        runAction("Đã cập nhật thông tin quán!") {
+            catalogRepository.updateStoreInfo(uiState.value.storeId, name, address, phone)
         }
     }
 

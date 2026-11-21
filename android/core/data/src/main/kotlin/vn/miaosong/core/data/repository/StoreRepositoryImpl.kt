@@ -14,6 +14,7 @@ import vn.miaosong.core.model.MenuItem
 import vn.miaosong.core.model.MenuOption
 import vn.miaosong.core.model.OptionGroup
 import vn.miaosong.core.model.OptionGroupType
+import vn.miaosong.core.model.Review
 import vn.miaosong.core.model.SpecialDay
 import vn.miaosong.core.model.Store
 import vn.miaosong.core.model.StoreSchedule
@@ -97,6 +98,30 @@ class StoreRepositoryImpl @Inject constructor(
                     return@addSnapshotListener
                 }
                 val list = snap?.documents?.mapNotNull { it.toVoucher() } ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { reg.remove() }
+    }
+
+    override fun observeStoreReviews(storeId: String): Flow<List<Review>> = callbackFlow {
+        val reg = firestore.collection("reviews")
+            .whereEqualTo("storeId", storeId)
+            .addSnapshotListener { snap, err ->
+                if (err != null) {
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+                val list = snap?.documents?.mapNotNull { doc ->
+                    Review(
+                        orderId = doc.getString("orderId") ?: doc.id,
+                        storeId = doc.getString("storeId") ?: storeId,
+                        customerId = doc.getString("customerId").orEmpty(),
+                        stars = (doc.getLong("stars") ?: 5L).toInt(),
+                        tags = (doc.get("tags") as? List<*>)?.mapNotNull { it as? String }.orEmpty(),
+                        comment = doc.getString("comment").orEmpty(),
+                        createdAtEpochMs = doc.getTimestamp("createdAt")?.toDate()?.time ?: 0L,
+                    )
+                }?.sortedByDescending { it.createdAtEpochMs }.orEmpty()
                 trySend(list)
             }
         awaitClose { reg.remove() }

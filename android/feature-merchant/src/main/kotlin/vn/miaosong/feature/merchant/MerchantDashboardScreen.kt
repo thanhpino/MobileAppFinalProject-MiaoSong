@@ -207,6 +207,7 @@ fun MerchantDashboardScreen(
                 3 -> MerchantStoreProfileTab(
                     uiState = uiState,
                     onUpdateStatus = viewModel::updateStoreStatus,
+                    onUpdateStoreInfo = viewModel::updateStoreInfo,
                     onAvatarPicked = viewModel::uploadStoreAvatar,
                     onSignInClick = { showLoginDialog = true },
                     onSwitchToCustomer = onSwitchToCustomerPreview,
@@ -813,23 +814,29 @@ private fun MerchantKitchenTab(
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
                                 text = "Mã đơn #MS-261121-0012",
-                                style = MaterialTheme.typography.headlineSmall,
                                 color = MiaoColors.OnSurface,
+                                fontSize = 15.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
                             )
                             Surface(
                                 color = Color(0xFFE6FAF8),
                                 shape = RoundedCornerShape(999.dp),
                             ) {
                                 Text(
-                                    text = "Đơn mẫu · Đang chuẩn bị",
+                                    text = "Đang chuẩn bị",
                                     color = MiaoColors.SecondaryTeal,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false,
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                                 )
                             }
@@ -907,13 +914,17 @@ private fun MerchantOrderKdsCard(
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = "Mã đơn #${order.code}",
-                    style = MaterialTheme.typography.headlineSmall,
                     color = MiaoColors.OnSurface,
+                    fontSize = 15.5.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
                 Surface(color = statusBg, shape = RoundedCornerShape(999.dp)) {
                     Text(
@@ -921,6 +932,8 @@ private fun MerchantOrderKdsCard(
                         color = statusFg,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                     )
                 }
@@ -1116,11 +1129,13 @@ private fun RejectOrderDialog(
 private fun MerchantStoreProfileTab(
     uiState: MerchantUiState,
     onUpdateStatus: (ManualStoreStatus, Int?) -> Unit,
+    onUpdateStoreInfo: (String, String, String) -> Unit,
     onAvatarPicked: (ByteArray) -> Unit,
     onSignInClick: () -> Unit,
     onSwitchToCustomer: () -> Unit,
 ) {
     val context = LocalContext.current
+    var showEditInfoDialog by remember { mutableStateOf(false) }
     val photoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
     ) { uri ->
@@ -1140,79 +1155,98 @@ private fun MerchantStoreProfileTab(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // 1. Thẻ Avatar Quán + Upload lên Firebase Storage
+        // 1. Thẻ Hồ sơ Quán + Avatar + Nút chỉnh sửa thông tin & địa chỉ
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
         ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(76.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MiaoColors.SurfaceContainerLow)
-                        .clickable {
-                            photoPicker.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                            )
-                        },
-                    contentAlignment = Alignment.Center,
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    if (!store?.avatarUrl.isNullOrBlank()) {
-                        AsyncImage(
-                            model = store?.avatarUrl,
-                            contentDescription = "Avatar quán",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    } else {
-                        Text(text = "🍜", fontSize = 36.sp)
-                    }
-                    Surface(
-                        color = Color.Black.copy(alpha = 0.55f),
-                        shape = CircleShape,
+                    Box(
                         modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(4.dp)
-                            .size(24.dp),
+                            .size(76.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MiaoColors.SurfaceContainerLow)
+                            .clickable {
+                                photoPicker.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                                )
+                            },
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.CameraAlt,
-                                contentDescription = "Đổi ảnh quán",
-                                tint = Color.White,
-                                modifier = Modifier.size(14.dp),
+                        if (!store?.avatarUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = store?.avatarUrl,
+                                contentDescription = "Avatar quán",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else {
+                            Text(text = "🍜", fontSize = 36.sp)
+                        }
+                        Surface(
+                            color = Color.Black.copy(alpha = 0.55f),
+                            shape = CircleShape,
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(4.dp)
+                                .size(24.dp),
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.CameraAlt,
+                                    contentDescription = "Đổi ảnh quán",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                            }
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = store?.name ?: "Bún Riêu Cô Ba",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MiaoColors.OnSurface,
+                        )
+                        Text(
+                            text = store?.address ?: "420 Nguyễn Thị Thập, Q.7",
+                            color = MiaoColors.OnSurfaceVariant,
+                            fontSize = 12.sp,
+                        )
+                        if (!store?.phone.isNullOrBlank()) {
+                            Text(
+                                text = "SĐT quán: ${store?.phone}",
+                                color = MiaoColors.OnSurfaceVariant,
+                                fontSize = 12.sp,
                             )
                         }
                     }
                 }
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+
+                Surface(
+                    color = MiaoColors.SurfaceContainerLow,
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.25f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showEditInfoDialog = true },
+                ) {
                     Text(
-                        text = store?.name ?: "Bún Riêu Cô Ba",
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MiaoColors.OnSurface,
-                    )
-                    Text(
-                        text = store?.address ?: "420 Nguyễn Thị Thập, Q.7",
-                        color = MiaoColors.OnSurfaceVariant,
-                        fontSize = 12.sp,
-                    )
-                    Text(
-                        text = "Chạm vào ảnh để tải Avatar quán lên Firebase Storage",
-                        color = MiaoColors.BrandOrange,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        text = "Chỉnh sửa thông tin & địa chỉ quán",
+                        color = MiaoColors.BrandOrangeDark,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                     )
                 }
             }
         }
 
-        // 2. Đổi trạng thái hoạt động 1 chạm (Mục 3 đề bài)
+        // 2. Trạng thái hoạt động của quán
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(18.dp),
@@ -1220,7 +1254,7 @@ private fun MerchantStoreProfileTab(
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "Trạng thái hoạt động (1 chạm)",
+                    text = "Trạng thái hoạt động",
                     style = MaterialTheme.typography.headlineSmall,
                     color = MiaoColors.OnSurface,
                 )
@@ -1257,6 +1291,84 @@ private fun MerchantStoreProfileTab(
             }
         }
 
+        // 3. Lịch sử đánh giá từ khách hàng (Mục 5 đề bài)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Đánh giá từ khách hàng",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MiaoColors.OnSurface,
+                    )
+                    Surface(
+                        color = Color(0xFFFFF8E6),
+                        shape = RoundedCornerShape(999.dp),
+                    ) {
+                        val avgText = String.format("%.1f", store?.ratingAvg ?: 4.9)
+                        val count = store?.ratingCount ?: uiState.reviews.size
+                        Text(
+                            text = "★ $avgText ($count)",
+                            color = Color(0xFFB45309),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        )
+                    }
+                }
+
+                if (uiState.reviews.isEmpty()) {
+                    Text(
+                        text = "Chưa có đánh giá mới từ khách hàng. Các đánh giá 1–5 sao sau khi giao thành công sẽ hiển thị realtime tại đây.",
+                        color = MiaoColors.OnSurfaceVariant,
+                        fontSize = 12.5.sp,
+                    )
+                } else {
+                    uiState.reviews.take(5).forEach { review ->
+                        Surface(
+                            color = MiaoColors.SurfaceCanvas,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Text(
+                                    text = "★".repeat(review.stars.coerceIn(1, 5)) +
+                                        "☆".repeat((5 - review.stars).coerceIn(0, 5)),
+                                    color = Color(0xFFD97706),
+                                    fontSize = 13.sp,
+                                )
+                                if (review.comment.isNotBlank()) {
+                                    Text(
+                                        text = review.comment,
+                                        color = MiaoColors.OnSurface,
+                                        fontSize = 13.sp,
+                                    )
+                                }
+                                if (review.tags.isNotEmpty()) {
+                                    Text(
+                                        text = review.tags.joinToString(" · "),
+                                        color = MiaoColors.SecondaryTeal,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         if (uiState.currentUser?.role != UserRole.MERCHANT) {
             MiaoPrimaryButton(
                 text = "Đăng nhập tài khoản Quán (tt3145539@gmail.com)",
@@ -1269,6 +1381,80 @@ private fun MerchantStoreProfileTab(
             onClick = onSwitchToCustomer,
         )
     }
+
+    if (showEditInfoDialog) {
+        EditStoreInfoDialog(
+            initialName = store?.name.orEmpty(),
+            initialAddress = store?.address.orEmpty(),
+            initialPhone = store?.phone.orEmpty(),
+            onDismiss = { showEditInfoDialog = false },
+            onConfirm = { name, address, phone ->
+                onUpdateStoreInfo(name, address, phone)
+                showEditInfoDialog = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun EditStoreInfoDialog(
+    initialName: String,
+    initialAddress: String,
+    initialPhone: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String, String, String) -> Unit,
+) {
+    var name by remember { mutableStateOf(initialName) }
+    var address by remember { mutableStateOf(initialAddress) }
+    var phone by remember { mutableStateOf(initialPhone) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.White,
+        title = {
+            Text(
+                text = "Chỉnh sửa thông tin quán",
+                fontWeight = FontWeight.Bold,
+                color = MiaoColors.OnSurface,
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Tên quán") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = address,
+                    onValueChange = { address = it },
+                    label = { Text("Địa chỉ quán (điểm lấy hàng Lalamove)") },
+                    maxLines = 2,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = { Text("Số điện thoại liên hệ") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = name.isNotBlank() && address.isNotBlank(),
+                onClick = { onConfirm(name, address, phone) },
+            ) { Text("Lưu thay đổi", color = MiaoColors.BrandOrange, fontWeight = FontWeight.Bold) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Hủy") } },
+    )
 }
 
 @Composable
