@@ -6,6 +6,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.view.MotionEvent
@@ -22,6 +23,7 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.ConcurrentHashMap
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -313,31 +315,44 @@ fun OrderTrackingScreen(
         OrderStatus.COMPLETED -> 1.0
         else -> 0.0
     }
-    // Tải tuyến đường bộ ngắn nhất thực tế qua OSRM (OpenStreetMap Routing) — không vẽ đường chim bay qua sông
-    var roadRoutePoints by remember { mutableStateOf<List<GeoPoint>>(emptyList()) }
-    var roadTotalMeters by remember { mutableStateOf<Double?>(null) }
+    // Cache tuyến đường bộ ngắn nhất trong RAM để thoát ra vào lại hiển thị ngay 0ms (không bị nháy qua sông)
+    val routeCacheKey = remember(pickupLat, pickupLng, dropoffLat, dropoffLng) {
+        String.format("%.4f,%.4f->%.4f,%.4f", pickupLat, pickupLng, dropoffLat, dropoffLng)
+    }
+    val cachedEntry = remember(routeCacheKey) { osrmRouteCache[routeCacheKey] }
+    var roadRoutePoints by remember(routeCacheKey) { mutableStateOf(cachedEntry?.first.orEmpty()) }
+    var roadTotalMeters by remember(routeCacheKey) { mutableStateOf(cachedEntry?.second) }
+    var isFetchingRoute by remember(routeCacheKey) { mutableStateOf(cachedEntry == null) }
 
-    LaunchedEffect(pickupLat, pickupLng, dropoffLat, dropoffLng) {
+    LaunchedEffect(routeCacheKey) {
+        if (osrmRouteCache.containsKey(routeCacheKey)) {
+            isFetchingRoute = false
+            return@LaunchedEffect
+        }
+        isFetchingRoute = true
         val fetched = fetchOsrmShortestRoute(pickupLat, pickupLng, dropoffLat, dropoffLng)
         if (fetched != null && fetched.first.size >= 2) {
+            osrmRouteCache[routeCacheKey] = fetched
             roadRoutePoints = fetched.first
             roadTotalMeters = fetched.second
-        } else {
-            roadRoutePoints = listOf(GeoPoint(pickupLat, pickupLng), GeoPoint(dropoffLat, dropoffLng))
-            roadTotalMeters = null
         }
+        isFetchingRoute = false
     }
 
     // Đặt vị trí tài xế bám chính xác trên tuyến đường bộ thực tế theo tiến độ đơn hàng
-    val driverGeoPoint = remember(roadRoutePoints, driverProgress, pickupLat, pickupLng, dropoffLat, dropoffLng) {
+    val driverIndex = remember(roadRoutePoints, driverProgress) {
         if (roadRoutePoints.size >= 2) {
-            val idx = ((roadRoutePoints.size - 1) * driverProgress).toInt()
+            ((roadRoutePoints.size - 1) * driverProgress).toInt()
                 .coerceIn(0, roadRoutePoints.size - 1)
-            roadRoutePoints[idx]
         } else {
-            val dLat = pickupLat + (dropoffLat - pickupLat) * driverProgress
-            val dLng = pickupLng + (dropoffLng - pickupLng) * driverProgress
-            GeoPoint(dLat, dLng)
+            -1
+        }
+    }
+    val driverGeoPoint = remember(roadRoutePoints, driverIndex, pickupLat, pickupLng, dropoffLat, dropoffLng) {
+        if (driverIndex in roadRoutePoints.indices) {
+            roadRoutePoints[driverIndex]
+        } else {
+            GeoPoint(pickupLat, pickupLng)
         }
     }
 
@@ -437,15 +452,33 @@ fun OrderTrackingScreen(
                             pickup = GeoPoint(pickupLat, pickupLng),
                             dropoff = GeoPoint(dropoffLat, dropoffLng),
                             driver = driverGeoPoint,
-                            routePoints = roadRoutePoints.ifEmpty {
-                                listOf(GeoPoint(pickupLat, pickupLng), driverGeoPoint, GeoPoint(dropoffLat, dropoffLng))
-                            },
+                            driverIndex = driverIndex,
+                            routePoints = roadRoutePoints,
                             storeName = order.storeName.ifBlank { "Quán MiaoSong" },
                             dropoffLabel = order.address.fullText.ifBlank { "Điểm giao hàng" },
                             driverName = order.delivery.driver?.name,
                             recenterTrigger = recenterTrigger,
                             modifier = Modifier.fillMaxSize(),
                         )
+
+                        if (isFetchingRoute) {
+                            Surface(
+                                color = Color.White.copy(alpha = 0.94f),
+                                shape = RoundedCornerShape(999.dp),
+                                shadowElevation = 3.dp,
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .padding(10.dp),
+                            ) {
+                                Text(
+                                    text = "Đang tìm đường ngắn nhất...",
+                                    color = MiaoColors.OnSurface,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                )
+                            }
+                        }
 
                         // Overlay badges trên bản đồ
                         Row(
@@ -779,12 +812,15 @@ fun OrderTrackingScreen(
     }
 }
 
+private val osrmRouteCache = ConcurrentHashMap<String, Pair<List<GeoPoint>, Double>>()
+
 @SuppressLint("ClickableViewAccessibility")
 @Composable
 private fun OsmDeliveryMapView(
     pickup: GeoPoint,
     dropoff: GeoPoint,
     driver: GeoPoint,
+    driverIndex: Int,
     routePoints: List<GeoPoint>,
     storeName: String,
     dropoffLabel: String,
@@ -795,6 +831,7 @@ private fun OsmDeliveryMapView(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var lastRecenterCount by remember { mutableIntStateOf(-1) }
+    var hasFittedRoute by remember { mutableStateOf(false) }
 
     // Cấu hình OSMDroid dùng cache nội bộ app (không cần quyền WRITE_EXTERNAL_STORAGE trên Android 11+)
     remember {
@@ -848,57 +885,109 @@ private fun OsmDeliveryMapView(
         update = { map ->
             map.overlays.clear()
 
-            // 1. Tuyến đường bộ ngắn nhất từ OSRM (bám theo đường phố thật, không bay qua sông)
-            val routeLine = Polyline(map).apply {
-                setPoints(routePoints)
-                outlinePaint.color = MiaoColors.BrandOrange.toArgb()
-                outlinePaint.strokeWidth = 9f
-                outlinePaint.strokeCap = Paint.Cap.ROUND
-                outlinePaint.strokeJoin = Paint.Join.ROUND
-                outlinePaint.isAntiAlias = true
-            }
-            map.overlays.add(routeLine)
+            // 1. Chỉ vẽ tuyến đường khi đã có đường bộ thật từ OSRM (KHÔNG bao giờ vẽ đường thẳng bay qua sông!)
+            if (routePoints.size >= 2) {
+                val splitIdx = driverIndex.coerceIn(0, routePoints.lastIndex)
 
-            // 2. Ghim Quán (Pickup - Cam)
+                // Đoạn đã đi (Quán -> Tài xế): màu xám xanh dịu
+                if (splitIdx >= 1) {
+                    val traveledLine = Polyline(map).apply {
+                        setPoints(routePoints.subList(0, splitIdx + 1))
+                        outlinePaint.color = Color(0xFF94A3B8).toArgb()
+                        outlinePaint.strokeWidth = 7f
+                        outlinePaint.strokeCap = Paint.Cap.ROUND
+                        outlinePaint.strokeJoin = Paint.Join.ROUND
+                        outlinePaint.isAntiAlias = true
+                    }
+                    map.overlays.add(traveledLine)
+                }
+
+                // Đoạn sắp tới (Tài xế -> Khách): viền trắng + lõi Cam MiaoSong nổi bật
+                if (splitIdx < routePoints.lastIndex) {
+                    val remainingPts = routePoints.subList(splitIdx, routePoints.size)
+                    val casingLine = Polyline(map).apply {
+                        setPoints(remainingPts)
+                        outlinePaint.color = android.graphics.Color.WHITE
+                        outlinePaint.strokeWidth = 13f
+                        outlinePaint.strokeCap = Paint.Cap.ROUND
+                        outlinePaint.strokeJoin = Paint.Join.ROUND
+                        outlinePaint.isAntiAlias = true
+                    }
+                    val activeLine = Polyline(map).apply {
+                        setPoints(remainingPts)
+                        outlinePaint.color = MiaoColors.BrandOrange.toArgb()
+                        outlinePaint.strokeWidth = 8.5f
+                        outlinePaint.strokeCap = Paint.Cap.ROUND
+                        outlinePaint.strokeJoin = Paint.Join.ROUND
+                        outlinePaint.isAntiAlias = true
+                    }
+                    map.overlays.add(casingLine)
+                    map.overlays.add(activeLine)
+                }
+            }
+
+            // 2. Ghim Quán có nhãn rõ ràng
             val pickupMarker = Marker(map).apply {
                 position = pickup
                 title = "Quán: $storeName"
                 setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                icon = createCirclePinDrawable(context, MiaoColors.BrandOrange.toArgb(), "Q")
+                icon = createLabeledPinDrawable(
+                    context = context,
+                    circleColor = MiaoColors.BrandOrange.toArgb(),
+                    iconGlyph = "🍜",
+                    tagText = "Quán",
+                    withHalo = false,
+                )
             }
             map.overlays.add(pickupMarker)
 
-            // 3. Ghim Khách (Dropoff - Xanh Teal)
+            // 3. Ghim Khách có nhãn rõ ràng
             val dropoffMarker = Marker(map).apply {
                 position = dropoff
                 title = "Giao tới: $dropoffLabel"
                 setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                icon = createCirclePinDrawable(context, MiaoColors.SecondaryTeal.toArgb(), "K")
+                icon = createLabeledPinDrawable(
+                    context = context,
+                    circleColor = MiaoColors.SecondaryTeal.toArgb(),
+                    iconGlyph = "📍",
+                    tagText = "Bạn",
+                    withHalo = false,
+                )
             }
             map.overlays.add(dropoffMarker)
 
-            // 4. Ghim Tài xế Lalamove (bám trên đường bộ thực tế)
-            val driverMarker = Marker(map).apply {
-                position = driver
-                title = driverName?.let { "Tài xế Lalamove: $it" } ?: "Tài xế Lalamove"
-                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                icon = createCirclePinDrawable(context, Color(0xFF27180F).toArgb(), "🛵")
+            // 4. Ghim Tài xế Lalamove (chỉ hiện khi đã bám đúng đường bộ thật)
+            if (routePoints.size >= 2) {
+                val driverMarker = Marker(map).apply {
+                    position = driver
+                    title = driverName?.let { "Tài xế Lalamove: $it" } ?: "Tài xế Lalamove"
+                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                    icon = createLabeledPinDrawable(
+                        context = context,
+                        circleColor = Color(0xFF27180F).toArgb(),
+                        iconGlyph = "🛵",
+                        tagText = "Tài xế",
+                        withHalo = true,
+                    )
+                }
+                map.overlays.add(driverMarker)
             }
-            map.overlays.add(driverMarker)
 
-            // Chỉ tự động căn giữa lần đầu hoặc khi người dùng bấm nút căn giữa (để user tự do kéo map)
-            if (lastRecenterCount != recenterTrigger) {
+            // Căn khung hình vừa khít lần đầu (hoặc khi có tuyến đường mới / user bấm căn giữa)
+            val shouldFit = (lastRecenterCount != recenterTrigger) || (!hasFittedRoute && routePoints.size >= 2)
+            if (shouldFit) {
                 lastRecenterCount = recenterTrigger
-                val allPts = (routePoints + listOf(pickup, dropoff, driver))
+                if (routePoints.size >= 2) hasFittedRoute = true
+                val allPts = (routePoints + listOf(pickup, dropoff))
                 val north = allPts.maxOf { it.latitude }
                 val south = allPts.minOf { it.latitude }
                 val east = allPts.maxOf { it.longitude }
                 val west = allPts.minOf { it.longitude }
-                val latPad = ((north - south) * 0.25).coerceAtLeast(0.002)
-                val lngPad = ((east - west) * 0.25).coerceAtLeast(0.002)
+                val latPad = ((north - south) * 0.30).coerceAtLeast(0.0022)
+                val lngPad = ((east - west) * 0.30).coerceAtLeast(0.0022)
                 val box = BoundingBox(north + latPad, east + lngPad, south - latPad, west - lngPad)
                 map.post {
-                    runCatching { map.zoomToBoundingBox(box, true, 48) }
+                    runCatching { map.zoomToBoundingBox(box, true, 56) }
                 }
             }
             map.invalidate()
@@ -906,7 +995,7 @@ private fun OsmDeliveryMapView(
     )
 }
 
-/** Gọi OSRM OpenStreetMap Routing API lấy đường bộ ngắn nhất thực tế (trả về danh sách tọa độ + tổng mét) */
+/** Gọi OSRM OpenStreetMap Routing API (alternatives=true) và chọn nhánh đường bộ NGẮN NHẤT */
 private suspend fun fetchOsrmShortestRoute(
     startLat: Double,
     startLng: Double,
@@ -915,7 +1004,7 @@ private suspend fun fetchOsrmShortestRoute(
 ): Pair<List<GeoPoint>, Double>? = withContext(Dispatchers.IO) {
     runCatching {
         val urlStr = "https://router.project-osrm.org/route/v1/driving/" +
-            "$startLng,$startLat;$endLng,$endLat?overview=full&geometries=geojson"
+            "$startLng,$startLat;$endLng,$endLat?overview=full&geometries=geojson&alternatives=true"
         val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 6_000
@@ -928,48 +1017,95 @@ private suspend fun fetchOsrmShortestRoute(
             val json = JSONObject(body)
             val routes = json.optJSONArray("routes") ?: return@withContext null
             if (routes.length() == 0) return@withContext null
-            val firstRoute = routes.getJSONObject(0)
-            val distanceMeters = firstRoute.optDouble("distance", 0.0)
-            val coords = firstRoute.getJSONObject("geometry").getJSONArray("coordinates")
+
+            // Chọn tuyến có tổng chiều dài (distance) ngắn nhất trong các phương án OSRM trả về
+            var bestRoute = routes.getJSONObject(0)
+            var bestDistance = bestRoute.optDouble("distance", Double.MAX_VALUE)
+            for (r in 1 until routes.length()) {
+                val candidate = routes.getJSONObject(r)
+                val dist = candidate.optDouble("distance", Double.MAX_VALUE)
+                if (dist < bestDistance) {
+                    bestDistance = dist
+                    bestRoute = candidate
+                }
+            }
+
+            val coords = bestRoute.getJSONObject("geometry").getJSONArray("coordinates")
             val pts = ArrayList<GeoPoint>(coords.length())
             for (i in 0 until coords.length()) {
                 val c = coords.getJSONArray(i)
-                val lng = c.getDouble(0)
-                val lat = c.getDouble(1)
-                pts.add(GeoPoint(lat, lng))
+                pts.add(GeoPoint(c.getDouble(1), c.getDouble(0)))
             }
-            pts to distanceMeters
+            pts to bestDistance
         } finally {
             conn.disconnect()
         }
     }.getOrNull()
 }
 
-private fun createCirclePinDrawable(context: Context, fillColor: Int, label: String): BitmapDrawable {
-    val sizePx = (34 * context.resources.displayMetrics.density).toInt().coerceAtLeast(64)
-    val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+private fun createLabeledPinDrawable(
+    context: Context,
+    circleColor: Int,
+    iconGlyph: String,
+    tagText: String,
+    withHalo: Boolean,
+): BitmapDrawable {
+    val density = context.resources.displayMetrics.density
+    val widthPx = (64 * density).toInt().coerceAtLeast(120)
+    val heightPx = (56 * density).toInt().coerceAtLeast(108)
+    val bmp = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
-    val r = sizePx / 2f
+    val cx = widthPx / 2f
+    val circleRadius = 15f * density
+    val cy = circleRadius + 4f * density
 
-    val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    if (withHalo) {
+        val haloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = MiaoColors.BrandOrange.copy(alpha = 0.28f).toArgb()
+            style = Paint.Style.FILL
+        }
+        canvas.drawCircle(cx, cy, circleRadius + 4.5f * density, haloPaint)
+    }
+
+    val whitePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = android.graphics.Color.WHITE
         style = Paint.Style.FILL
     }
     val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = fillColor
+        color = circleColor
         style = Paint.Style.FILL
     }
-    val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    val glyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = android.graphics.Color.WHITE
-        textSize = sizePx * 0.42f
+        textSize = 14f * density
+        textAlign = Paint.Align.CENTER
+    }
+
+    canvas.drawCircle(cx, cy, circleRadius, whitePaint)
+    canvas.drawCircle(cx, cy, circleRadius - 2.2f * density, fillPaint)
+    val glyphY = cy - (glyphPaint.descent() + glyphPaint.ascent()) / 2f
+    canvas.drawText(iconGlyph, cx, glyphY, glyphPaint)
+
+    // Nhãn pill gọn ngay dưới biểu tượng ("Quán", "Tài xế", "Bạn")
+    val tagPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.WHITE
+        textSize = 9.5f * density
         textAlign = Paint.Align.CENTER
         isFakeBoldText = true
     }
+    val textWidth = tagPaint.measureText(tagText)
+    val pillW = (textWidth + 12f * density).coerceAtLeast(34f * density)
+    val pillH = 15f * density
+    val pillTop = cy + circleRadius + 2f * density
+    val pillRect = RectF(cx - pillW / 2f, pillTop, cx + pillW / 2f, pillTop + pillH)
 
-    canvas.drawCircle(r, r, r - 2f, borderPaint)
-    canvas.drawCircle(r, r, r - 6f, fillPaint)
-    val textY = r - (textPaint.descent() + textPaint.ascent()) / 2f
-    canvas.drawText(label, r, textY, textPaint)
+    val pillBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = circleColor
+        style = Paint.Style.FILL
+    }
+    canvas.drawRoundRect(pillRect, pillH / 2f, pillH / 2f, pillBgPaint)
+    val tagY = pillRect.centerY() - (tagPaint.descent() + tagPaint.ascent()) / 2f
+    canvas.drawText(tagText, cx, tagY, tagPaint)
 
     return BitmapDrawable(context.resources, bmp)
 }
