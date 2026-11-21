@@ -826,6 +826,122 @@ private fun MerchantKitchenTab(
         }
 
         if (orders.isEmpty()) {
+            // 1. Mẫu Đơn mới: có đầy đủ nút "Từ chối đơn" & "Xác nhận nhận đơn" (Mục 3)
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(1.2.dp, MiaoColors.BrandOrange.copy(alpha = 0.45f)),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "Mã đơn #MS-261121-0015",
+                                color = MiaoColors.OnSurface,
+                                fontSize = 15.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Surface(
+                                color = Color(0xFFFFEADF),
+                                shape = RoundedCornerShape(999.dp),
+                            ) {
+                                Text(
+                                    text = "Đơn mới",
+                                    color = MiaoColors.BrandOrangeDark,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                )
+                            }
+                        }
+                        Text(
+                            text = "2x Bún Riêu Cua Đặc Biệt (Tô thường · Thêm chả cá)",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MiaoColors.OnSurface,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            text = "Tổng thu: 112.000đ · ZaloPay (Đã thanh toán)",
+                            color = MiaoColors.BrandOrangeDark,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Surface(
+                                color = Color(0xFFFFF1F0),
+                                shape = RoundedCornerShape(999.dp),
+                                border = BorderStroke(1.dp, Color(0xFFD92D20).copy(alpha = 0.35f)),
+                                modifier = Modifier
+                                    .weight(0.95f)
+                                    .clickable {
+                                        rejectingOrder = Order(
+                                            id = "preview_new",
+                                            code = "MS-261121-0015",
+                                            customerId = "",
+                                            storeId = "",
+                                            pricing = vn.miaosong.core.model.PriceBreakdown(0, 0, 0, 0, 0, 112_000),
+                                            address = vn.miaosong.core.model.DeliveryAddress(fullText = "", lat = 0.0, lng = 0.0),
+                                            payment = vn.miaosong.core.model.OrderPayment(
+                                                method = vn.miaosong.core.model.PaymentMethod.ZALOPAY,
+                                                status = vn.miaosong.core.model.PaymentStatus.PAID,
+                                                amountVnd = 112_000,
+                                            ),
+                                        )
+                                    },
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(vertical = 11.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = "Từ chối đơn",
+                                        color = Color(0xFFD92D20),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.5.sp,
+                                    )
+                                }
+                            }
+                            Surface(
+                                color = MiaoColors.BrandOrange,
+                                shape = RoundedCornerShape(999.dp),
+                                modifier = Modifier.weight(1.45f),
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(vertical = 11.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = "Xác nhận nhận đơn",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.5.sp,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. Mẫu Đang chuẩn bị tại bếp: nổi bật Ghi chú & Dị ứng + Báo xong món / Gọi shipper (Mục 3 & 4)
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -925,6 +1041,109 @@ private fun MerchantKitchenTab(
                     }
                 }
             }
+
+            // 3. Mẫu Theo dõi giao hàng & Cảnh báo rủi ro đơn giao quá lâu (Mục 5)
+            item {
+                val dialContext = LocalContext.current
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(1.dp, Color(0xFFD92D20).copy(alpha = 0.35f)),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "Mã đơn #MS-261121-0009",
+                                color = MiaoColors.OnSurface,
+                                fontSize = 15.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Surface(
+                                color = Color(0xFFFFF1F0),
+                                shape = RoundedCornerShape(999.dp),
+                            ) {
+                                Text(
+                                    text = "Đang giao · 36p",
+                                    color = Color(0xFFD92D20),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                )
+                            }
+                        }
+                        Surface(
+                            color = Color(0xFFFFF1F0),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                text = "Cảnh báo rủi ro: Đơn bị giao quá lâu (36 phút) — Hãy gọi tài xế kiểm tra!",
+                                color = Color(0xFF93000A),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            )
+                        }
+                        Surface(
+                            color = Color(0xFFE6FAF8),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(
+                                        text = "Tài xế Lalamove: Nguyễn Văn Minh",
+                                        color = MiaoColors.SecondaryTeal,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                    Text(
+                                        text = "SĐT: 0909 888 777 · Biển số: 59X1-123.45",
+                                        color = MiaoColors.OnSurface,
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                                Surface(
+                                    color = MiaoColors.SecondaryTeal,
+                                    shape = RoundedCornerShape(999.dp),
+                                    modifier = Modifier.clickable {
+                                        dialContext.startActivity(
+                                            Intent(Intent.ACTION_DIAL, Uri.parse("tel:0909888777")),
+                                        )
+                                    },
+                                ) {
+                                    Text(
+                                        text = "Gọi tài xế",
+                                        color = Color.White,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         } else {
             items(orders, key = { it.id }) { order ->
                 MerchantOrderKdsCard(
@@ -942,9 +1161,12 @@ private fun MerchantKitchenTab(
     rejectingOrder?.let { target ->
         RejectOrderDialog(
             orderCode = target.code,
+            isPrepaid = target.payment.status == vn.miaosong.core.model.PaymentStatus.PAID,
             onDismiss = { rejectingOrder = null },
             onConfirm = { code, text ->
-                onRejectOrder(target.id, code, text)
+                if (target.id != "preview_new") {
+                    onRejectOrder(target.id, code, text)
+                }
                 rejectingOrder = null
             },
         )
@@ -1033,6 +1255,35 @@ private fun MerchantOrderKdsCard(
                 fontWeight = FontWeight.Bold,
             )
 
+            // Cảnh báo rủi ro giao quá lâu (>= 30 phút) cho Chủ quán (Mục 5 đề bài)
+            val isDeliveryActive = order.status in setOf(
+                OrderStatus.FINDING_DRIVER,
+                OrderStatus.DRIVER_ASSIGNED,
+                OrderStatus.ARRIVED_AT_STORE,
+                OrderStatus.PICKED_UP,
+                OrderStatus.DELIVERING,
+            )
+            val elapsedMinutes = if (order.createdAtEpochMs > 0L) {
+                ((System.currentTimeMillis() - order.createdAtEpochMs) / 60_000L).coerceAtLeast(0L)
+            } else {
+                0L
+            }
+            if (isDeliveryActive && elapsedMinutes >= 30L) {
+                Surface(
+                    color = Color(0xFFFFF1F0),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = "Cảnh báo rủi ro: Đơn bị giao quá lâu (${elapsedMinutes} phút) — Hãy gọi tài xế kiểm tra!",
+                        color = Color(0xFF93000A),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                    )
+                }
+            }
+
             // Thông tin tài xế Lalamove khi đã được gán + nút gọi điện
             order.delivery.driver?.let { driver ->
                 val dialContext = LocalContext.current
@@ -1104,7 +1355,7 @@ private fun MerchantOrderKdsCard(
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
-                                    text = "Từ chối",
+                                    text = "Từ chối đơn",
                                     color = Color(0xFFD92D20),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp,
@@ -1168,11 +1419,12 @@ private fun MerchantOrderKdsCard(
 @Composable
 private fun RejectOrderDialog(
     orderCode: String,
+    isPrepaid: Boolean = false,
     onDismiss: () -> Unit,
     onConfirm: (String, String) -> Unit,
 ) {
     val reasons = listOf(
-        "OUT_OF_STOCK" to "Hết nguyên liệu / Hết món",
+        "OUT_OF_STOCK" to "Hết nguyên liệu đột xuất (VD: Hết chả cá)",
         "STORE_BUSY" to "Quán đang quá tải đơn",
         "CLOSING_SOON" to "Quán sắp đóng cửa",
     )
@@ -1191,7 +1443,25 @@ private fun RejectOrderDialog(
             )
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (isPrepaid) {
+                    Surface(
+                        color = Color(0xFFFFF8E6),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text = "Khách đã thanh toán trước — hệ thống sẽ tự động gửi thông báo lý do kèm hoàn tiền cho khách.",
+                            color = Color(0xFF785A00),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(10.dp),
+                        )
+                    }
+                }
                 reasons.forEach { (code, label) ->
                     FilterChip(
                         selected = selectedCode == code,
@@ -1387,6 +1657,11 @@ private fun MerchantStoreProfileTab(
                         selected = false,
                         onClick = { onUpdateStatus(ManualStoreStatus.BUSY, 60) },
                         label = { Text("🟡 Bận 1h") },
+                    )
+                    FilterChip(
+                        selected = false,
+                        onClick = { onUpdateStatus(ManualStoreStatus.BUSY, 1440) },
+                        label = { Text("🟡 Bận 1 ngày") },
                     )
                     FilterChip(
                         selected = store?.schedule?.manualStatus == ManualStoreStatus.CLOSED,
