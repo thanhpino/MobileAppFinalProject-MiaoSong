@@ -3,10 +3,13 @@ package vn.miaosong.feature.merchant
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import vn.miaosong.core.common.AppResult
@@ -24,6 +27,7 @@ import vn.miaosong.core.model.SpecialDay
 import vn.miaosong.core.model.Store
 import vn.miaosong.core.model.TimeSlot
 import vn.miaosong.core.model.UserProfile
+import vn.miaosong.core.model.UserRole
 import vn.miaosong.core.model.Voucher
 import javax.inject.Inject
 
@@ -43,6 +47,7 @@ data class MerchantUiState(
 
 const val DEFAULT_MERCHANT_STORE_ID = "store_bun_rieu_co_ba"
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class MerchantViewModel @Inject constructor(
     private val authRepository: AuthRepository,
@@ -56,8 +61,19 @@ class MerchantViewModel @Inject constructor(
 
     private val storeId = DEFAULT_MERCHANT_STORE_ID
 
+    private val currentUserFlow = authRepository.observeCurrentUser()
+
+    // Tự động đăng ký lại listener `orders` ngay khi tài khoản Quán (MERCHANT) đăng nhập thành công
+    private val liveOrdersFlow = currentUserFlow.flatMapLatest { user ->
+        if (user?.role == UserRole.MERCHANT) {
+            orderRepository.observeStoreOrders(user.storeId?.takeIf { it.isNotBlank() } ?: storeId)
+        } else {
+            flowOf(emptyList())
+        }
+    }
+
     val uiState: StateFlow<MerchantUiState> = combine(
-        authRepository.observeCurrentUser(),
+        currentUserFlow,
         storeRepository.observeStore(storeId),
         storeRepository.observeCategories(storeId),
         storeRepository.observeMenuItems(storeId),
@@ -72,7 +88,7 @@ class MerchantViewModel @Inject constructor(
             menuItems = items,
             vouchers = vouchers,
         )
-    }.combine(orderRepository.observeStoreOrders(storeId)) { state, orders ->
+    }.combine(liveOrdersFlow) { state, orders ->
         state.copy(orders = orders)
     }.combine(storeRepository.observeStoreReviews(storeId)) { state, reviews ->
         state.copy(reviews = reviews)
@@ -88,6 +104,10 @@ class MerchantViewModel @Inject constructor(
 
     fun clearFeedback() {
         feedbackState.value = null
+    }
+
+    fun showFeedback(message: String) {
+        feedbackState.value = message
     }
 
     fun signInMerchant(email: String, password: String) {

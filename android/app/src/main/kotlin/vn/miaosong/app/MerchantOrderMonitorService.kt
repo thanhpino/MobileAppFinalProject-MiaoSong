@@ -45,6 +45,7 @@ class MerchantOrderMonitorService : Service() {
     private fun startForegroundIndicator() {
         val openAppIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra("open_merchant_kds", true)
         }
         val pending = PendingIntent.getActivity(
             this,
@@ -117,6 +118,7 @@ class MerchantOrderMonitorService : Service() {
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("orderId", orderId)
+            putExtra("open_merchant_kds", true)
         }
         val pending = PendingIntent.getActivity(
             this,
