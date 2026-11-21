@@ -106,11 +106,19 @@ import vn.miaosong.core.model.VoucherType
 @Composable
 fun MerchantDashboardScreen(
     onSwitchToCustomerPreview: () -> Unit,
+    initialTab: Int = 0,
+    kdsNavigationNonce: Int = 0,
     viewModel: MerchantViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    var selectedTab by rememberSaveable(initialTab) { mutableIntStateOf(initialTab) }
     val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(kdsNavigationNonce) {
+        if (kdsNavigationNonce > 0) {
+            selectedTab = 2
+        }
+    }
 
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var showAddItemDialog by remember { mutableStateOf(false) }
@@ -226,6 +234,7 @@ fun MerchantDashboardScreen(
                     onMarkReady = viewModel::markOrderReady,
                     onDispatchDriver = viewModel::dispatchDriver,
                     onAdvanceMockDelivery = viewModel::advanceMockDelivery,
+                    onShowFeedback = viewModel::showFeedback,
                 )
                 3 -> MerchantStoreProfileTab(
                     uiState = uiState,
@@ -803,8 +812,24 @@ private fun MerchantKitchenTab(
     onMarkReady: (String) -> Unit,
     onDispatchDriver: (String) -> Unit,
     onAdvanceMockDelivery: (String, OrderStatus) -> Unit,
+    onShowFeedback: (String) -> Unit = {},
 ) {
     var rejectingOrder by remember { mutableStateOf<Order?>(null) }
+    var previewNewOrderStatus by remember { mutableStateOf("Đơn mới") }
+    var previewNewOrderRejected by remember { mutableStateOf(false) }
+    var previewCookingStatus by remember { mutableStateOf("Đang chuẩn bị") }
+    val sortedOrders = remember(orders) {
+        val terminalStatuses = setOf(
+            OrderStatus.COMPLETED,
+            OrderStatus.REJECTED,
+            OrderStatus.CANCELLED,
+            OrderStatus.DELIVERY_FAILED,
+        )
+        orders.sortedWith(
+            compareBy<Order> { it.status in terminalStatuses }
+                .thenByDescending { it.createdAtEpochMs },
+        )
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -828,7 +853,8 @@ private fun MerchantKitchenTab(
 
         if (orders.isEmpty()) {
             // 1. Mẫu Đơn mới: có đầy đủ nút "Từ chối đơn" & "Xác nhận nhận đơn" (Mục 3)
-            item {
+            if (!previewNewOrderRejected) {
+                item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(18.dp),
@@ -854,12 +880,12 @@ private fun MerchantKitchenTab(
                                 modifier = Modifier.weight(1f),
                             )
                             Surface(
-                                color = Color(0xFFFFEADF),
+                                color = if (previewNewOrderStatus == "Đơn mới") Color(0xFFFFEADF) else Color(0xFFE6FAF8),
                                 shape = RoundedCornerShape(999.dp),
                             ) {
                                 Text(
-                                    text = "Đơn mới",
-                                    color = MiaoColors.BrandOrangeDark,
+                                    text = previewNewOrderStatus,
+                                    color = if (previewNewOrderStatus == "Đơn mới") MiaoColors.BrandOrangeDark else MiaoColors.SecondaryTeal,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     maxLines = 1,
@@ -923,14 +949,19 @@ private fun MerchantKitchenTab(
                             Surface(
                                 color = MiaoColors.BrandOrange,
                                 shape = RoundedCornerShape(999.dp),
-                                modifier = Modifier.weight(1.45f),
+                                modifier = Modifier
+                                    .weight(1.45f)
+                                    .clickable {
+                                        previewNewOrderStatus = "Đang chuẩn bị"
+                                        onShowFeedback("Đã xác nhận nhận đơn — Khách nhận thông báo 'Quán đang chuẩn bị món'")
+                                    },
                             ) {
                                 Box(
                                     modifier = Modifier.padding(vertical = 11.dp),
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     Text(
-                                        text = "Xác nhận nhận đơn",
+                                        text = if (previewNewOrderStatus == "Đơn mới") "Xác nhận nhận đơn" else "Đã xác nhận",
                                         color = Color.White,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.5.sp,
@@ -939,6 +970,7 @@ private fun MerchantKitchenTab(
                             }
                         }
                     }
+                }
                 }
             }
 
@@ -973,7 +1005,7 @@ private fun MerchantKitchenTab(
                                 shape = RoundedCornerShape(999.dp),
                             ) {
                                 Text(
-                                    text = "Đang chuẩn bị",
+                                    text = previewCookingStatus,
                                     color = MiaoColors.SecondaryTeal,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
@@ -1007,7 +1039,12 @@ private fun MerchantKitchenTab(
                                 color = MiaoColors.SurfaceContainerLow,
                                 shape = RoundedCornerShape(999.dp),
                                 border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.3f)),
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        previewCookingStatus = "Sẵn sàng giao"
+                                        onShowFeedback("Đơn đã làm xong — Sẵn sàng gọi tài xế Lalamove!")
+                                    },
                             ) {
                                 Box(
                                     modifier = Modifier.padding(vertical = 11.dp),
@@ -1024,7 +1061,12 @@ private fun MerchantKitchenTab(
                             Surface(
                                 color = MiaoColors.BrandOrange,
                                 shape = RoundedCornerShape(999.dp),
-                                modifier = Modifier.weight(1.2f),
+                                modifier = Modifier
+                                    .weight(1.2f)
+                                    .clickable {
+                                        previewCookingStatus = "Đang tìm tài xế"
+                                        onShowFeedback("Đã gửi yêu cầu điều phối tài xế Lalamove!")
+                                    },
                             ) {
                                 Box(
                                     modifier = Modifier.padding(vertical = 11.dp),
@@ -1146,7 +1188,7 @@ private fun MerchantKitchenTab(
                 }
             }
         } else {
-            items(orders, key = { it.id }) { order ->
+            items(sortedOrders, key = { it.id }) { order ->
                 MerchantOrderKdsCard(
                     order = order,
                     onConfirm = { onConfirmOrder(order.id) },
@@ -1165,7 +1207,10 @@ private fun MerchantKitchenTab(
             isPrepaid = target.payment.status == vn.miaosong.core.model.PaymentStatus.PAID,
             onDismiss = { rejectingOrder = null },
             onConfirm = { code, text ->
-                if (target.id != "preview_new") {
+                if (target.id == "preview_new") {
+                    previewNewOrderRejected = true
+                    onShowFeedback("Đã từ chối đơn #${target.code} ($text) — Đã gửi thông báo & hoàn tiền cho khách!")
+                } else {
                     onRejectOrder(target.id, code, text)
                 }
                 rejectingOrder = null
@@ -1255,6 +1300,29 @@ private fun MerchantOrderKdsCard(
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
             )
+
+            // Hiển thị rõ lý do từ chối & trạng thái hoàn tiền cho đơn đã từ chối
+            if (order.status == OrderStatus.REJECTED) {
+                val refundNote = when (order.refundStatus) {
+                    vn.miaosong.core.model.RefundStatus.REFUNDED -> " · Đã hoàn tiền cho khách"
+                    vn.miaosong.core.model.RefundStatus.PENDING -> " · Đang xử lý hoàn tiền"
+                    else -> ""
+                }
+                val reasonText = order.rejectReason?.takeIf { it.isNotBlank() } ?: "Quán từ chối nhận đơn"
+                Surface(
+                    color = Color(0xFFFFF1F0),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = "Lý do từ chối: $reasonText$refundNote",
+                        color = Color(0xFF93000A),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                    )
+                }
+            }
 
             // Cảnh báo rủi ro giao quá lâu (>= 30 phút) cho Chủ quán (Mục 5 đề bài)
             val isDeliveryActive = order.status in setOf(

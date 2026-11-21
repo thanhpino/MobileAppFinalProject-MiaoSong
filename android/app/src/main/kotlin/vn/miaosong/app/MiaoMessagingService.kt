@@ -57,6 +57,9 @@ class MiaoMessagingService : FirebaseMessagingService() {
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("orderId", message.data["orderId"])
+            if (type == "NEW_ORDER") {
+                putExtra("open_merchant_kds", true)
+            }
         }
         val pending = PendingIntent.getActivity(
             this,

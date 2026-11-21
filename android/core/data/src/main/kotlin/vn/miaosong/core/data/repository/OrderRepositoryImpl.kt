@@ -47,13 +47,15 @@ class OrderRepositoryImpl @Inject constructor(
     override fun observeCustomerOrders(uid: String): Flow<List<Order>> = callbackFlow {
         val reg = firestore.collection("orders")
             .whereEqualTo("customerId", uid)
-            .orderBy("createdAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snap, err ->
                 if (err != null) {
                     trySend(emptyList())
                     return@addSnapshotListener
                 }
-                val orders = snap?.documents?.mapNotNull { it.toOrderOrNull() }.orEmpty()
+                val orders = snap?.documents
+                    ?.mapNotNull { it.toOrderOrNull() }
+                    ?.sortedByDescending { it.createdAtEpochMs }
+                    .orEmpty()
                 trySend(orders)
             }
         awaitClose { reg.remove() }
@@ -80,13 +82,15 @@ class OrderRepositoryImpl @Inject constructor(
     override fun observeStoreOrders(storeId: String): Flow<List<Order>> = callbackFlow {
         val reg = firestore.collection("orders")
             .whereEqualTo("storeId", storeId)
-            .orderBy("createdAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snap, err ->
                 if (err != null) {
                     trySend(emptyList())
                     return@addSnapshotListener
                 }
-                val orders = snap?.documents?.mapNotNull { it.toOrderOrNull() }.orEmpty()
+                val orders = snap?.documents
+                    ?.mapNotNull { it.toOrderOrNull() }
+                    ?.sortedByDescending { it.createdAtEpochMs }
+                    .orEmpty()
                 trySend(orders)
             }
         awaitClose { reg.remove() }
