@@ -40,6 +40,9 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
+    @Inject
+    lateinit var authRepository: AuthRepository
+
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { /* Kết quả cấp quyền thông báo Android 13+ */ }
@@ -59,6 +62,7 @@ class MainActivity : ComponentActivity() {
                 val hasLoggedInUser = remember { FirebaseAuth.getInstance().currentUser != null }
                 var activeRole by rememberSaveable { mutableStateOf(UserRole.CUSTOMER) }
                 var showOrderTracking by rememberSaveable { mutableStateOf(false) }
+                var trackingOrderId by rememberSaveable { mutableStateOf<String?>(null) }
                 var showAuthScreen by rememberSaveable { mutableStateOf(!hasLoggedInUser) }
                 var showProfileScreen by rememberSaveable { mutableStateOf(false) }
                 var showCartScreen by rememberSaveable { mutableStateOf(false) }
