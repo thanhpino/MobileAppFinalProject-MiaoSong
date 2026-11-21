@@ -4,9 +4,14 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.BitmapShader
 import android.graphics.Canvas
+import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.view.MotionEvent
@@ -132,6 +137,8 @@ import kotlin.math.sqrt
 data class OrderTrackingUiState(
     val order: Order = buildFallbackTrackingOrder(),
     val store: Store? = null,
+    val customerName: String = "Khách hàng",
+    val customerAvatarUrl: String? = null,
     val submittedStars: Int? = null,
     val feedbackMessage: String? = null,
 )
@@ -148,11 +155,13 @@ class OrderTrackingViewModel @Inject constructor(
     private val submittedStarsState = MutableStateFlow<Int?>(null)
     private val feedbackState = MutableStateFlow<String?>(null)
 
+    private val currentUserFlow = authRepository.observeCurrentUser()
+
     private val liveOrderFlow = requestedOrderId.flatMapLatest { id ->
         if (!id.isNullOrBlank() && !id.startsWith("demo_")) {
             orderRepository.observeOrder(id)
         } else {
-            authRepository.observeCurrentUser().flatMapLatest { user ->
+            currentUserFlow.flatMapLatest { user ->
                 if (user == null) {
                     flowOf(null)
                 } else {
@@ -172,12 +181,15 @@ class OrderTrackingViewModel @Inject constructor(
     val uiState: StateFlow<OrderTrackingUiState> = combine(
         liveOrderFlow,
         liveStoreFlow,
+        currentUserFlow,
         submittedStarsState,
         feedbackState,
-    ) { order, store, stars, msg ->
+    ) { order, store, user, stars, msg ->
         OrderTrackingUiState(
             order = order ?: buildFallbackTrackingOrder(),
             store = store,
+            customerName = user?.name?.takeIf { it.isNotBlank() } ?: "Khách hàng",
+            customerAvatarUrl = null,
             submittedStars = stars,
             feedbackMessage = msg,
         )
@@ -372,6 +384,31 @@ fun OrderTrackingScreen(
         order.status != OrderStatus.CANCELLED &&
         elapsedMinutes >= 30L
 
+    // Tải ảnh avatar thật của Quán & Khách (nếu có) để hiển thị trực tiếp trên ghim bản đồ
+    val storeAvatarUrl = store?.avatarUrl?.takeIf { it.isNotBlank() }
+    val customerAvatarUrl = uiState.customerAvatarUrl?.takeIf { it.isNotBlank() }
+    var storeAvatarBitmap by remember(storeAvatarUrl) {
+        mutableStateOf(storeAvatarUrl?.let { markerAvatarCache[it] })
+    }
+    var customerAvatarBitmap by remember(customerAvatarUrl) {
+        mutableStateOf(customerAvatarUrl?.let { markerAvatarCache[it] })
+    }
+
+    LaunchedEffect(storeAvatarUrl) {
+        if (storeAvatarUrl != null && storeAvatarBitmap == null) {
+            storeAvatarBitmap = fetchMarkerAvatarBitmap(storeAvatarUrl)
+        }
+    }
+    LaunchedEffect(customerAvatarUrl) {
+        if (customerAvatarUrl != null && customerAvatarBitmap == null) {
+            customerAvatarBitmap = fetchMarkerAvatarBitmap(customerAvatarUrl)
+        }
+    }
+
+    val isCustomerFemale = remember(uiState.customerName) {
+        isLikelyFemaleVietnameseName(uiState.customerName)
+    }
+
     Scaffold(
         containerColor = MiaoColors.SurfaceCanvas,
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -457,6 +494,9 @@ fun OrderTrackingScreen(
                             storeName = order.storeName.ifBlank { "Quán MiaoSong" },
                             dropoffLabel = order.address.fullText.ifBlank { "Điểm giao hàng" },
                             driverName = order.delivery.driver?.name,
+                            storeAvatarBitmap = storeAvatarBitmap,
+                            customerAvatarBitmap = customerAvatarBitmap,
+                            isCustomerFemale = isCustomerFemale,
                             recenterTrigger = recenterTrigger,
                             modifier = Modifier.fillMaxSize(),
                         )
@@ -813,6 +853,14 @@ fun OrderTrackingScreen(
 }
 
 private val osrmRouteCache = ConcurrentHashMap<String, Pair<List<GeoPoint>, Double>>()
+private val markerAvatarCache = ConcurrentHashMap<String, Bitmap>()
+
+private enum class DefaultMarkerAvatarType {
+    STORE,
+    CUSTOMER_MALE,
+    CUSTOMER_FEMALE,
+    DRIVER_ORANGE_HELMET,
+}
 
 @SuppressLint("ClickableViewAccessibility")
 @Composable
@@ -825,6 +873,9 @@ private fun OsmDeliveryMapView(
     storeName: String,
     dropoffLabel: String,
     driverName: String?,
+    storeAvatarBitmap: Bitmap?,
+    customerAvatarBitmap: Bitmap?,
+    isCustomerFemale: Boolean,
     recenterTrigger: Int,
     modifier: Modifier = Modifier,
 ) {
@@ -926,47 +977,54 @@ private fun OsmDeliveryMapView(
                 }
             }
 
-            // 2. Ghim Quán có nhãn rõ ràng
+            // 2. Ghim Quán: hiện ảnh Avatar thật của quán (nếu có), mặc định là icon mặt tiền quán cam
             val pickupMarker = Marker(map).apply {
                 position = pickup
                 title = "Quán: $storeName"
                 setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                icon = createLabeledPinDrawable(
+                icon = createRichAvatarPinDrawable(
                     context = context,
-                    circleColor = MiaoColors.BrandOrange.toArgb(),
-                    iconGlyph = "🍜",
+                    ringColor = MiaoColors.BrandOrange.toArgb(),
                     tagText = "Quán",
+                    avatarBitmap = storeAvatarBitmap,
+                    defaultType = DefaultMarkerAvatarType.STORE,
                     withHalo = false,
                 )
             }
             map.overlays.add(pickupMarker)
 
-            // 3. Ghim Khách có nhãn rõ ràng
+            // 3. Ghim Bạn (Khách hàng): hiện ảnh Avatar thật (nếu đã đổi), mặc định là Avatar Nam / Nữ
             val dropoffMarker = Marker(map).apply {
                 position = dropoff
                 title = "Giao tới: $dropoffLabel"
                 setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                icon = createLabeledPinDrawable(
+                icon = createRichAvatarPinDrawable(
                     context = context,
-                    circleColor = MiaoColors.SecondaryTeal.toArgb(),
-                    iconGlyph = "📍",
+                    ringColor = MiaoColors.SecondaryTeal.toArgb(),
                     tagText = "Bạn",
+                    avatarBitmap = customerAvatarBitmap,
+                    defaultType = if (isCustomerFemale) {
+                        DefaultMarkerAvatarType.CUSTOMER_FEMALE
+                    } else {
+                        DefaultMarkerAvatarType.CUSTOMER_MALE
+                    },
                     withHalo = false,
                 )
             }
             map.overlays.add(dropoffMarker)
 
-            // 4. Ghim Tài xế Lalamove (chỉ hiện khi đã bám đúng đường bộ thật)
+            // 4. Ghim Tài xế Lalamove: Tài xế đội mũ bảo hiểm màu cam đàng hoàng + vòng halo phát sáng
             if (routePoints.size >= 2) {
                 val driverMarker = Marker(map).apply {
                     position = driver
                     title = driverName?.let { "Tài xế Lalamove: $it" } ?: "Tài xế Lalamove"
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                    icon = createLabeledPinDrawable(
+                    icon = createRichAvatarPinDrawable(
                         context = context,
-                        circleColor = Color(0xFF27180F).toArgb(),
-                        iconGlyph = "🛵",
+                        ringColor = MiaoColors.BrandOrange.toArgb(),
                         tagText = "Tài xế",
+                        avatarBitmap = null,
+                        defaultType = DefaultMarkerAvatarType.DRIVER_ORANGE_HELMET,
                         withHalo = true,
                     )
                 }
@@ -1043,50 +1101,96 @@ private suspend fun fetchOsrmShortestRoute(
     }.getOrNull()
 }
 
-private fun createLabeledPinDrawable(
+private suspend fun fetchMarkerAvatarBitmap(url: String): Bitmap? = withContext(Dispatchers.IO) {
+    markerAvatarCache[url]?.let { return@withContext it }
+    runCatching {
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 5_000
+            readTimeout = 5_000
+        }
+        try {
+            if (conn.responseCode != 200) return@withContext null
+            val bmp = conn.inputStream.use { BitmapFactory.decodeStream(it) } ?: return@withContext null
+            markerAvatarCache[url] = bmp
+            bmp
+        } finally {
+            conn.disconnect()
+        }
+    }.getOrNull()
+}
+
+private fun isLikelyFemaleVietnameseName(name: String): Boolean {
+    val lower = name.lowercase()
+    val femaleKeywords = listOf(
+        " thị ", "ngọc", "linh", "trang", "hương", "thư", "phương",
+        "thảo", "my", "nhi", "vy", "yến", "trinh", "mai", "lan", "hạnh", "nhung",
+    )
+    return femaleKeywords.any { lower.contains(it) }
+}
+
+private fun createRichAvatarPinDrawable(
     context: Context,
-    circleColor: Int,
-    iconGlyph: String,
+    ringColor: Int,
     tagText: String,
+    avatarBitmap: Bitmap?,
+    defaultType: DefaultMarkerAvatarType,
     withHalo: Boolean,
 ): BitmapDrawable {
     val density = context.resources.displayMetrics.density
-    val widthPx = (64 * density).toInt().coerceAtLeast(120)
-    val heightPx = (56 * density).toInt().coerceAtLeast(108)
+    val widthPx = (72 * density).toInt().coerceAtLeast(136)
+    val heightPx = (66 * density).toInt().coerceAtLeast(124)
     val bmp = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
     val cx = widthPx / 2f
-    val circleRadius = 15f * density
-    val cy = circleRadius + 4f * density
+    val circleRadius = 18f * density
+    val cy = circleRadius + 5f * density
 
+    // Vòng halo cam phát sáng cho Tài xế
     if (withHalo) {
         val haloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = MiaoColors.BrandOrange.copy(alpha = 0.28f).toArgb()
+            color = MiaoColors.BrandOrange.copy(alpha = 0.25f).toArgb()
             style = Paint.Style.FILL
         }
-        canvas.drawCircle(cx, cy, circleRadius + 4.5f * density, haloPaint)
+        canvas.drawCircle(cx, cy, circleRadius + 5f * density, haloPaint)
     }
+
+    // Đổ bóng nhẹ + viền trắng + viền màu thương hiệu
+    val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.argb(40, 0, 0, 0)
+        style = Paint.Style.FILL
+    }
+    canvas.drawCircle(cx, cy + 1.5f * density, circleRadius + 1f * density, shadowPaint)
 
     val whitePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = android.graphics.Color.WHITE
         style = Paint.Style.FILL
     }
-    val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = circleColor
+    val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = ringColor
         style = Paint.Style.FILL
     }
-    val glyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = android.graphics.Color.WHITE
-        textSize = 14f * density
-        textAlign = Paint.Align.CENTER
+    canvas.drawCircle(cx, cy, circleRadius, whitePaint)
+    canvas.drawCircle(cx, cy, circleRadius - 2f * density, ringPaint)
+
+    val innerRadius = circleRadius - 3.6f * density
+    if (avatarBitmap != null) {
+        // Vẽ ảnh thật (Avatar quán / Avatar khách) cắt tròn sắc nét
+        drawCircularBitmap(canvas, avatarBitmap, cx, cy, innerRadius)
+    } else {
+        // Vẽ Avatar vector tùy biến sắc nét (Quán / Nam / Nữ / Tài xế đội nón cam)
+        canvas.save()
+        val clipPath = Path().apply { addCircle(cx, cy, innerRadius, Path.Direction.CW) }
+        canvas.clipPath(clipPath)
+        when (defaultType) {
+            DefaultMarkerAvatarType.STORE -> drawStoreDefaultAvatar(canvas, cx, cy, innerRadius)
+            DefaultMarkerAvatarType.CUSTOMER_MALE -> drawPersonAvatar(canvas, cx, cy, innerRadius, isFemale = false)
+            DefaultMarkerAvatarType.CUSTOMER_FEMALE -> drawPersonAvatar(canvas, cx, cy, innerRadius, isFemale = true)
+            DefaultMarkerAvatarType.DRIVER_ORANGE_HELMET -> drawOrangeHelmetDriverAvatar(canvas, cx, cy, innerRadius)
+        }
+        canvas.restore()
     }
 
-    canvas.drawCircle(cx, cy, circleRadius, whitePaint)
-    canvas.drawCircle(cx, cy, circleRadius - 2.2f * density, fillPaint)
-    val glyphY = cy - (glyphPaint.descent() + glyphPaint.ascent()) / 2f
-    canvas.drawText(iconGlyph, cx, glyphY, glyphPaint)
-
-    // Nhãn pill gọn ngay dưới biểu tượng ("Quán", "Tài xế", "Bạn")
+    // Nhãn pill gọn bên dưới ("Quán", "Tài xế", "Bạn")
     val tagPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = android.graphics.Color.WHITE
         textSize = 9.5f * density
@@ -1094,13 +1198,23 @@ private fun createLabeledPinDrawable(
         isFakeBoldText = true
     }
     val textWidth = tagPaint.measureText(tagText)
-    val pillW = (textWidth + 12f * density).coerceAtLeast(34f * density)
-    val pillH = 15f * density
-    val pillTop = cy + circleRadius + 2f * density
+    val pillW = (textWidth + 14f * density).coerceAtLeast(38f * density)
+    val pillH = 15.5f * density
+    val pillTop = cy + circleRadius + 2.5f * density
     val pillRect = RectF(cx - pillW / 2f, pillTop, cx + pillW / 2f, pillTop + pillH)
 
+    val pillBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.WHITE
+        style = Paint.Style.FILL
+    }
+    canvas.drawRoundRect(
+        RectF(pillRect.left - 1.2f * density, pillRect.top - 1.2f * density, pillRect.right + 1.2f * density, pillRect.bottom + 1.2f * density),
+        pillH / 2f,
+        pillH / 2f,
+        pillBorderPaint,
+    )
     val pillBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = circleColor
+        color = ringColor
         style = Paint.Style.FILL
     }
     canvas.drawRoundRect(pillRect, pillH / 2f, pillH / 2f, pillBgPaint)
@@ -1108,6 +1222,134 @@ private fun createLabeledPinDrawable(
     canvas.drawText(tagText, cx, tagY, tagPaint)
 
     return BitmapDrawable(context.resources, bmp)
+}
+
+private fun drawCircularBitmap(canvas: Canvas, src: Bitmap, cx: Float, cy: Float, radius: Float) {
+    val shader = BitmapShader(src, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+    val scale = maxOf((radius * 2f) / src.width, (radius * 2f) / src.height)
+    val matrix = Matrix().apply {
+        setScale(scale, scale)
+        postTranslate(cx - (src.width * scale) / 2f, cy - (src.height * scale) / 2f)
+    }
+    shader.setLocalMatrix(matrix)
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.shader = shader }
+    canvas.drawCircle(cx, cy, radius, paint)
+}
+
+private fun drawStoreDefaultAvatar(canvas: Canvas, cx: Float, cy: Float, r: Float) {
+    // Nền kem ấm
+    canvas.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color(0xFFFFF1EA).toArgb() })
+    // Mái hiên quán màu cam
+    val awning = RectF(cx - r * 0.62f, cy - r * 0.55f, cx + r * 0.62f, cy - r * 0.12f)
+    canvas.drawRoundRect(awning, r * 0.15f, r * 0.15f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = MiaoColors.BrandOrange.toArgb() })
+    // Thân quán trắng + cửa nâu
+    val body = RectF(cx - r * 0.52f, cy - r * 0.15f, cx + r * 0.52f, cy + r * 0.55f)
+    canvas.drawRoundRect(body, r * 0.1f, r * 0.1f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE })
+    val door = RectF(cx - r * 0.18f, cy + r * 0.08f, cx + r * 0.18f, cy + r * 0.55f)
+    canvas.drawRoundRect(door, r * 0.08f, r * 0.08f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color(0xFF5A4137).toArgb() })
+}
+
+private fun drawPersonAvatar(canvas: Canvas, cx: Float, cy: Float, r: Float, isFemale: Boolean) {
+    // Nền xanh ngọc dịu
+    canvas.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color(0xFFE6FAF8).toArgb() })
+    val hairColor = Color(0xFF2E1E16).toArgb()
+    val skinColor = Color(0xFFFFD8BE).toArgb()
+    val shirtColor = if (isFemale) Color(0xFFFF7A59).toArgb() else MiaoColors.SecondaryTeal.toArgb()
+
+    // Tóc dài phía sau cho Nữ
+    if (isFemale) {
+        val backHair = RectF(cx - r * 0.46f, cy - r * 0.45f, cx + r * 0.46f, cy + r * 0.45f)
+        canvas.drawRoundRect(backHair, r * 0.35f, r * 0.35f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = hairColor })
+    }
+
+    // Vai / áo
+    val shoulders = RectF(cx - r * 0.68f, cy + r * 0.28f, cx + r * 0.68f, cy + r * 1.15f)
+    canvas.drawOval(shoulders, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = shirtColor })
+
+    // Khuôn mặt
+    val faceY = cy - r * 0.08f
+    val faceR = r * 0.36f
+    canvas.drawCircle(cx, faceY, faceR, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = skinColor })
+
+    // Mái tóc phía trên
+    val topHair = RectF(cx - faceR * 1.05f, faceY - faceR * 1.08f, cx + faceR * 1.05f, faceY - faceR * 0.1f)
+    canvas.drawArc(topHair, 180f, 180f, true, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = hairColor })
+
+    // Mắt + nụ cười tươi
+    val eyePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = hairColor }
+    canvas.drawCircle(cx - faceR * 0.34f, faceY + faceR * 0.02f, faceR * 0.09f, eyePaint)
+    canvas.drawCircle(cx + faceR * 0.34f, faceY + faceR * 0.02f, faceR * 0.09f, eyePaint)
+
+    if (isFemale) {
+        val blush = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color(0x66FF7A7A).toArgb() }
+        canvas.drawCircle(cx - faceR * 0.5f, faceY + faceR * 0.22f, faceR * 0.13f, blush)
+        canvas.drawCircle(cx + faceR * 0.5f, faceY + faceR * 0.22f, faceR * 0.13f, blush)
+    }
+
+    val smilePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color(0xFF9A3412).toArgb()
+        style = Paint.Style.STROKE
+        strokeWidth = r * 0.07f
+        strokeCap = Paint.Cap.ROUND
+    }
+    val smileRect = RectF(cx - faceR * 0.26f, faceY + faceR * 0.14f, cx + faceR * 0.26f, faceY + faceR * 0.48f)
+    canvas.drawArc(smileRect, 15f, 150f, false, smilePaint)
+}
+
+/** Vẽ Avatar Tài xế chạy xe đội mũ bảo hiểm màu Cam MiaoSong đàng hoàng (có kính chắn gió + áo khoác cam) */
+private fun drawOrangeHelmetDriverAvatar(canvas: Canvas, cx: Float, cy: Float, r: Float) {
+    // Nền ấm sáng
+    canvas.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color(0xFFFFF4EC).toArgb() })
+
+    val orangePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = MiaoColors.BrandOrange.toArgb() }
+    val darkOrangePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = MiaoColors.BrandOrangeDark.toArgb() }
+    val skinPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color(0xFFFFD8BE).toArgb() }
+    val visorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color(0xFF27180F).toArgb() }
+    val whitePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE }
+
+    // Áo khoác shipper màu cam + sọc trắng giữa
+    val jacket = RectF(cx - r * 0.72f, cy + r * 0.28f, cx + r * 0.72f, cy + r * 1.15f)
+    canvas.drawOval(jacket, orangePaint)
+    val collar = RectF(cx - r * 0.16f, cy + r * 0.28f, cx + r * 0.16f, cy + r * 0.95f)
+    canvas.drawRect(collar, whitePaint)
+
+    // Khuôn mặt dưới mũ bảo hiểm
+    val faceY = cy - r * 0.04f
+    val faceR = r * 0.36f
+    canvas.drawCircle(cx, faceY, faceR, skinPaint)
+
+    // Mũ bảo hiểm màu Cam MiaoSong bo tròn ôm đầu
+    val helmetRect = RectF(cx - r * 0.48f, cy - r * 0.62f, cx + r * 0.48f, cy + r * 0.08f)
+    canvas.drawArc(helmetRect, 180f, 180f, true, orangePaint)
+
+    // Sọc trắng phản quang trên đỉnh mũ bảo hiểm
+    val stripeRect = RectF(cx - r * 0.08f, cy - r * 0.60f, cx + r * 0.08f, cy - r * 0.28f)
+    canvas.drawRoundRect(stripeRect, r * 0.05f, r * 0.05f, whitePaint)
+
+    // Kính chắn gió (visor) màu nâu đậm bóng trên mũ
+    val visorRect = RectF(cx - r * 0.42f, cy - r * 0.30f, cx + r * 0.42f, cy - r * 0.09f)
+    canvas.drawRoundRect(visorRect, r * 0.12f, r * 0.12f, visorPaint)
+
+    // Quai mũ bảo hiểm hai bên má
+    val strapPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = darkOrangePaint.color
+        style = Paint.Style.STROKE
+        strokeWidth = r * 0.06f
+    }
+    canvas.drawLine(cx - faceR * 0.78f, faceY - faceR * 0.05f, cx - faceR * 0.35f, faceY + faceR * 0.85f, strapPaint)
+    canvas.drawLine(cx + faceR * 0.78f, faceY - faceR * 0.05f, cx + faceR * 0.35f, faceY + faceR * 0.85f, strapPaint)
+
+    // Mắt & nụ cười thân thiện của tài xế
+    canvas.drawCircle(cx - faceR * 0.30f, faceY + faceR * 0.08f, faceR * 0.08f, visorPaint)
+    canvas.drawCircle(cx + faceR * 0.30f, faceY + faceR * 0.08f, faceR * 0.08f, visorPaint)
+    val smilePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = darkOrangePaint.color
+        style = Paint.Style.STROKE
+        strokeWidth = r * 0.07f
+        strokeCap = Paint.Cap.ROUND
+    }
+    val smileRect = RectF(cx - faceR * 0.24f, faceY + faceR * 0.18f, cx + faceR * 0.24f, faceY + faceR * 0.48f)
+    canvas.drawArc(smileRect, 15f, 150f, false, smilePaint)
 }
 
 private fun orderStatusLabel(status: OrderStatus): String = when (status) {
