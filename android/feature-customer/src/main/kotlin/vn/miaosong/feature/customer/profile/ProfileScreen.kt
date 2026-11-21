@@ -3,6 +3,7 @@ package vn.miaosong.feature.customer.profile
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Domain
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
@@ -45,6 +47,9 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -52,12 +57,15 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -104,7 +112,7 @@ fun ProfileScreen(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
-            viewModel.updateAvatar(uri.toString())
+            viewModel.uploadAvatarFromUri(uri.toString())
         }
     }
 
@@ -144,6 +152,15 @@ fun ProfileScreen(
         onToggleConfirmNewPasswordVisibility = viewModel::toggleConfirmNewPasswordVisibility,
         onSubmitPasswordChange = viewModel::submitPasswordChange,
         onSendPasswordReset = viewModel::sendPasswordReset,
+        onAddNewAddress = viewModel::openAddAddressDialog,
+        onCloseAddAddressDialog = viewModel::closeAddAddressDialog,
+        onNewAddressLabelChange = viewModel::onNewAddressLabelChange,
+        onNewAddressFullTextChange = viewModel::onNewAddressFullTextChange,
+        onNewAddressNoteChange = viewModel::onNewAddressNoteChange,
+        onNewAddressIsDefaultChange = viewModel::onNewAddressIsDefaultChange,
+        onSubmitAddAddress = viewModel::submitAddAddress,
+        onSetDefaultAddress = viewModel::setDefaultAddress,
+        onDeleteAddress = viewModel::deleteAddress,
         onSignOut = viewModel::signOut,
         onOpenOrderHistory = onOpenOrderHistory,
         modifier = modifier,
@@ -169,6 +186,15 @@ fun ProfileContent(
     onToggleConfirmNewPasswordVisibility: () -> Unit = {},
     onSubmitPasswordChange: () -> Unit = {},
     onSendPasswordReset: () -> Unit = {},
+    onAddNewAddress: () -> Unit = {},
+    onCloseAddAddressDialog: () -> Unit = {},
+    onNewAddressLabelChange: (String) -> Unit = {},
+    onNewAddressFullTextChange: (String) -> Unit = {},
+    onNewAddressNoteChange: (String) -> Unit = {},
+    onNewAddressIsDefaultChange: (Boolean) -> Unit = {},
+    onSubmitAddAddress: () -> Unit = {},
+    onSetDefaultAddress: (String) -> Unit = {},
+    onDeleteAddress: (String) -> Unit = {},
     onSignOut: () -> Unit = {},
     onOpenOrderHistory: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -194,6 +220,7 @@ fun ProfileContent(
             ProfileHeroSection(
                 user = uiState.user,
                 avatarUri = uiState.avatarUri,
+                isUploadingAvatar = uiState.isUploadingAvatar,
                 onPickAvatar = onPickAvatar,
             )
 
@@ -203,10 +230,12 @@ fun ProfileContent(
                 onEditClick = onStartEditing,
             )
 
-            // 📍 Section 2: Địa chỉ nhận món (OpenStreetMap / Nominatim)
+            // 📍 Section 2: Địa chỉ nhận món (OpenStreetMap / Firestore)
             SavedAddressesSection(
                 addresses = uiState.addresses,
-                onAddNewAddress = { /* Sẽ kết nối OSM Picker ở Phase tiếp theo */ },
+                onAddNewAddress = onAddNewAddress,
+                onSetDefaultAddress = onSetDefaultAddress,
+                onDeleteAddress = onDeleteAddress,
             )
 
             // 🔒 Section 3: Bảo mật & Cài đặt
@@ -247,6 +276,23 @@ fun ProfileContent(
                 onSendResetEmail = onSendPasswordReset,
                 onDismiss = onCancelChangingPassword,
                 onConfirm = onSubmitPasswordChange,
+            )
+        }
+
+        // 🏡 Dialog Thêm Địa Chỉ Giao Hàng Mới
+        if (uiState.isAddingAddress) {
+            AddAddressDialog(
+                label = uiState.newAddressLabel,
+                fullText = uiState.newAddressFullText,
+                note = uiState.newAddressNote,
+                isDefault = uiState.newAddressIsDefault,
+                isLoading = uiState.isLoading,
+                onLabelChange = onNewAddressLabelChange,
+                onFullTextChange = onNewAddressFullTextChange,
+                onNoteChange = onNewAddressNoteChange,
+                onDefaultChange = onNewAddressIsDefaultChange,
+                onDismiss = onCloseAddAddressDialog,
+                onConfirm = onSubmitAddAddress,
             )
         }
     }
@@ -300,9 +346,12 @@ private fun ProfileTopAppBar(
 private fun ProfileHeroSection(
     user: UserProfile,
     avatarUri: String?,
+    isUploadingAvatar: Boolean = false,
     onPickAvatar: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val effectiveAvatar = avatarUri.takeIf { !it.isNullOrBlank() } ?: user.avatarUrl.takeIf { it.isNotBlank() }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -342,9 +391,9 @@ private fun ProfileHeroSection(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (!avatarUri.isNullOrBlank()) {
+                    if (!effectiveAvatar.isNullOrBlank()) {
                         AsyncImage(
-                            model = avatarUri,
+                            model = effectiveAvatar,
                             contentDescription = "Ảnh đại diện",
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
@@ -368,7 +417,7 @@ private fun ProfileHeroSection(
                     .align(Alignment.BottomEnd)
                     .size(32.dp)
                     .clip(CircleShape)
-                    .clickable { onPickAvatar() }
+                    .clickable(enabled = !isUploadingAvatar) { onPickAvatar() }
                     .shadow(elevation = 3.dp, shape = CircleShape),
                 shape = CircleShape,
                 color = MiaoColors.BrandOrange,
@@ -377,12 +426,20 @@ private fun ProfileHeroSection(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.PhotoCamera,
-                        contentDescription = "Chọn ảnh đại diện từ máy",
-                        tint = Color.White,
-                        modifier = Modifier.size(17.dp),
-                    )
+                    if (isUploadingAvatar) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.PhotoCamera,
+                            contentDescription = "Chọn ảnh đại diện từ máy",
+                            tint = Color.White,
+                            modifier = Modifier.size(17.dp),
+                        )
+                    }
                 }
             }
         }
@@ -517,6 +574,8 @@ private fun PersonalInfoSection(
 private fun SavedAddressesSection(
     addresses: List<DeliveryAddress>,
     onAddNewAddress: () -> Unit,
+    onSetDefaultAddress: (String) -> Unit = {},
+    onDeleteAddress: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Card(
@@ -579,9 +638,21 @@ private fun SavedAddressesSection(
                 }
             }
 
-            // Danh sách địa chỉ đã lưu
-            addresses.forEach { address ->
-                AddressItemCard(address = address)
+            if (addresses.isEmpty()) {
+                Text(
+                    text = "Chưa có địa chỉ nào được lưu. Bấm \"+ Thêm mới\" để thêm địa chỉ giao hàng.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MiaoColors.OnSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
+            } else {
+                addresses.forEach { address ->
+                    AddressItemCard(
+                        address = address,
+                        onSetDefault = { onSetDefaultAddress(address.id) },
+                        onDelete = { onDeleteAddress(address.id) },
+                    )
+                }
             }
         }
     }
@@ -590,8 +661,12 @@ private fun SavedAddressesSection(
 @Composable
 private fun AddressItemCard(
     address: DeliveryAddress,
+    onSetDefault: () -> Unit = {},
+    onDelete: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Surface(
         color = if (address.isDefault) MiaoColors.SurfaceContainerLow else MiaoColors.SurfaceCanvas,
         shape = RoundedCornerShape(12.dp),
@@ -619,25 +694,37 @@ private fun AddressItemCard(
             }
             Spacer(modifier = Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text(
                         text = address.label.ifBlank { "Địa chỉ" },
                         style = MaterialTheme.typography.labelLarge,
                         color = MiaoColors.OnSurface,
                         fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
                     )
                     if (address.isDefault) {
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Surface(
-                            color = MiaoColors.BrandOrange.copy(alpha = 0.15f),
-                            shape = RoundedCornerShape(999.dp),
+                            color = MiaoColors.BrandOrangeLight.copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(6.dp),
+                            border = BorderStroke(0.75.dp, MiaoColors.BrandOrange.copy(alpha = 0.4f)),
                         ) {
                             Text(
                                 text = "MẶC ĐỊNH",
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    letterSpacing = 0.5.sp,
+                                ),
                                 color = MiaoColors.BrandOrangeDark,
-                                fontWeight = FontWeight.ExtraBold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp),
                             )
                         }
                     }
@@ -659,12 +746,55 @@ private fun AddressItemCard(
                     )
                 }
             }
-            Icon(
-                imageVector = Icons.Default.MoreVert,
-                contentDescription = "Tùy chọn",
-                tint = MiaoColors.Outline,
-                modifier = Modifier.size(20.dp),
-            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Box {
+                IconButton(
+                    onClick = { showMenu = true },
+                    modifier = Modifier.size(24.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Tùy chọn",
+                        tint = MiaoColors.Outline,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false },
+                ) {
+                    if (!address.isDefault) {
+                        DropdownMenuItem(
+                            text = { Text("Đặt làm mặc định") },
+                            onClick = {
+                                showMenu = false
+                                onSetDefault()
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = MiaoColors.BrandOrange,
+                                )
+                            },
+                        )
+                    }
+                    DropdownMenuItem(
+                        text = { Text("Xóa địa chỉ", color = MaterialTheme.colorScheme.error) },
+                        onClick = {
+                            showMenu = false
+                            onDelete()
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                        },
+                    )
+                }
+            }
         }
     }
 }
@@ -978,6 +1108,101 @@ private fun ChangePasswordDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
+                Text(
+                    text = "Hủy",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MiaoColors.OnSurfaceVariant,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        },
+        containerColor = Color.White,
+        shape = RoundedCornerShape(20.dp),
+    )
+}
+
+@Composable
+private fun AddAddressDialog(
+    label: String,
+    fullText: String,
+    note: String,
+    isDefault: Boolean,
+    isLoading: Boolean,
+    onLabelChange: (String) -> Unit,
+    onFullTextChange: (String) -> Unit,
+    onNoteChange: (String) -> Unit,
+    onDefaultChange: (Boolean) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Thêm địa chỉ nhận món",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MiaoColors.OnSurface,
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                MiaoTextField(
+                    value = label,
+                    onValueChange = onLabelChange,
+                    label = "Tên gợi nhớ",
+                    placeholder = "Vd: Nhà riêng, Cơ quan, KTX...",
+                    leadingIcon = Icons.Default.Home,
+                )
+                MiaoTextField(
+                    value = fullText,
+                    onValueChange = onFullTextChange,
+                    label = "Địa chỉ chi tiết",
+                    placeholder = "Số nhà, tên đường, phường, quận/huyện...",
+                    leadingIcon = Icons.Default.LocationOn,
+                )
+                MiaoTextField(
+                    value = note,
+                    onValueChange = onNoteChange,
+                    label = "Ghi chú cho tài xế",
+                    placeholder = "Vd: Gọi khi đến cổng, gửi bàn lễ tân...",
+                    leadingIcon = Icons.Default.Edit,
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onDefaultChange(!isDefault) }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Switch(
+                        checked = isDefault,
+                        onCheckedChange = onDefaultChange,
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Đặt làm địa chỉ mặc định",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MiaoColors.OnSurface,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            MiaoPrimaryButton(
+                text = if (isLoading) "Đang lưu..." else "Lưu địa chỉ",
+                onClick = onConfirm,
+                enabled = !isLoading && label.isNotBlank() && fullText.isNotBlank(),
+                modifier = Modifier.width(130.dp),
+            )
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isLoading) {
                 Text(
                     text = "Hủy",
                     style = MaterialTheme.typography.labelMedium,

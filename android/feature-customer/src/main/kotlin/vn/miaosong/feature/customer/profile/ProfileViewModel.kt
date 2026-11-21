@@ -1,14 +1,21 @@
 package vn.miaosong.feature.customer.profile
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import vn.miaosong.core.common.AppResult
+import vn.miaosong.core.domain.AddressRepository
 import vn.miaosong.core.domain.AuthRepository
 import vn.miaosong.core.model.DeliveryAddress
 import vn.miaosong.core.model.UserProfile
@@ -17,11 +24,12 @@ import javax.inject.Inject
 
 data class ProfileUiState(
     val isLoading: Boolean = false,
+    val isUploadingAvatar: Boolean = false,
     val user: UserProfile = UserProfile(
-        uid = "demo_customer_01",
-        name = "Huỳnh Trần Thiên Phú",
-        email = "customer@miaosong.vn",
-        phone = "0901234567",
+        uid = "",
+        name = "",
+        email = "",
+        phone = "",
         role = UserRole.CUSTOMER,
     ),
     val avatarUri: String? = null,
@@ -34,42 +42,28 @@ data class ProfileUiState(
     val confirmNewPassword: String = "",
     val isNewPasswordVisible: Boolean = false,
     val isConfirmNewPasswordVisible: Boolean = false,
+    val isAddingAddress: Boolean = false,
+    val newAddressLabel: String = "",
+    val newAddressFullText: String = "",
+    val newAddressNote: String = "",
+    val newAddressIsDefault: Boolean = false,
     val message: String? = null,
     val isLoggedOut: Boolean = false,
 )
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val authRepository: AuthRepository,
+    private val addressRepository: AddressRepository,
+    @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(
-        ProfileUiState(
-            addresses = listOf(
-                DeliveryAddress(
-                    id = "addr_tdtu",
-                    label = "Trường ĐH Tôn Đức Thắng",
-                    fullText = "19 Nguyễn Hữu Thọ, Tân Phong, Quận 7, TP.HCM",
-                    lat = 10.7326,
-                    lng = 106.6998,
-                    note = "Gọi khi tới cổng chính",
-                    isDefault = true,
-                ),
-                DeliveryAddress(
-                    id = "addr_bitexco",
-                    label = "Văn phòng / Bitexco",
-                    fullText = "2 Hải Triều, Bến Nghé, Quận 1, TP. HCM",
-                    lat = 10.7716,
-                    lng = 106.7044,
-                    note = "Tầng 18, gửi tại bàn lễ tân",
-                    isDefault = false,
-                ),
-            )
-        )
-    )
+    private val _uiState = MutableStateFlow(ProfileUiState())
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
 
     init {
+        // 1. Luồng theo dõi thông tin người dùng realtime
         viewModelScope.launch {
             authRepository.observeCurrentUser().collect { currentUser ->
                 if (currentUser != null) {
@@ -79,7 +73,34 @@ class ProfileViewModel @Inject constructor(
                             isLoggedOut = false,
                         )
                     }
+                } else {
+                    _uiState.update {
+                        it.copy(
+                            user = UserProfile(
+                                uid = "",
+                                name = "",
+                                email = "",
+                                phone = "",
+                                role = UserRole.CUSTOMER,
+                            ),
+                            addresses = emptyList(),
+                            avatarUri = null,
+                        )
+                    }
                 }
+            }
+        }
+
+        // 2. Luồng theo dõi địa chỉ Firestore thời gian thực (tự động chuyển UID khi đổi tài khoản)
+        viewModelScope.launch {
+            authRepository.observeCurrentUser().flatMapLatest { user ->
+                if (user != null && user.uid.isNotBlank()) {
+                    addressRepository.observeAddresses(user.uid)
+                } else {
+                    flowOf(emptyList())
+                }
+            }.collect { addrs ->
+                _uiState.update { state -> state.copy(addresses = addrs) }
             }
         }
     }
@@ -88,12 +109,168 @@ class ProfileViewModel @Inject constructor(
         _uiState.update { it.copy(isLoggedOut = false) }
     }
 
-    fun updateAvatar(uri: String) {
+    fun uploadAvatarFromUri(uriString: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isUploadingAvatar = true, avatarUri = uriString) }
+            val bytes = try {
+                val uri = Uri.parse(uriString)
+                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            } catch (e: Exception) {
+                null
+            }
+
+            if (bytes == null || bytes.isEmpty()) {
+                _uiState.update {
+                    it.copy(
+                        isUploadingAvatar = false,
+                        message = "Không đọc được tệp ảnh từ thiết bị.",
+                    )
+                }
+                return@launch
+            }
+
+            when (val result = authRepository.uploadAvatar(bytes)) {
+                is AppResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isUploadingAvatar = false,
+                            avatarUri = result.data,
+                            user = it.user.copy(avatarUrl = result.data),
+                            message = "Tải ảnh đại diện lên máy chủ thành công!",
+                        )
+                    }
+                }
+                is AppResult.Error -> {
+                    _uiState.update {
+                        it.copy(
+                            isUploadingAvatar = false,
+                            message = result.message,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun openAddAddressDialog() {
         _uiState.update {
             it.copy(
-                avatarUri = uri,
-                message = "Cập nhật ảnh đại diện thành công!",
+                isAddingAddress = true,
+                newAddressLabel = "",
+                newAddressFullText = "",
+                newAddressNote = "",
+                newAddressIsDefault = it.addresses.isEmpty(), // Mặc định nếu là địa chỉ đầu tiên
+                message = null,
             )
+        }
+    }
+
+    fun closeAddAddressDialog() {
+        _uiState.update { it.copy(isAddingAddress = false) }
+    }
+
+    fun onNewAddressLabelChange(label: String) {
+        _uiState.update { it.copy(newAddressLabel = label) }
+    }
+
+    fun onNewAddressFullTextChange(fullText: String) {
+        _uiState.update { it.copy(newAddressFullText = fullText) }
+    }
+
+    fun onNewAddressNoteChange(note: String) {
+        _uiState.update { it.copy(newAddressNote = note) }
+    }
+
+    fun onNewAddressIsDefaultChange(isDefault: Boolean) {
+        _uiState.update { it.copy(newAddressIsDefault = isDefault) }
+    }
+
+    fun submitAddAddress() {
+        val state = _uiState.value
+        val label = state.newAddressLabel.trim()
+        val fullText = state.newAddressFullText.trim()
+        val note = state.newAddressNote.trim()
+        val uid = state.user.uid
+
+        if (uid.isBlank()) {
+            _uiState.update { it.copy(message = "Vui lòng đăng nhập để lưu địa chỉ.") }
+            return
+        }
+
+        if (label.isBlank()) {
+            _uiState.update { it.copy(message = "Vui lòng nhập tên địa chỉ (Vd: Nhà, Trường học).") }
+            return
+        }
+
+        if (fullText.isBlank()) {
+            _uiState.update { it.copy(message = "Vui lòng nhập địa chỉ chi tiết.") }
+            return
+        }
+
+        val newAddr = DeliveryAddress(
+            label = label,
+            fullText = fullText,
+            lat = 10.7326,
+            lng = 106.6998,
+            recipientName = state.user.name,
+            recipientPhone = state.user.phone,
+            note = note,
+            isDefault = state.newAddressIsDefault,
+        )
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            when (val result = addressRepository.addAddress(uid, newAddr)) {
+                is AppResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isAddingAddress = false,
+                            message = "Thêm địa chỉ nhận món thành công!",
+                        )
+                    }
+                }
+                is AppResult.Error -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            message = result.message,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun deleteAddress(addressId: String) {
+        val uid = _uiState.value.user.uid
+        if (uid.isBlank() || addressId.isBlank()) return
+
+        viewModelScope.launch {
+            when (val result = addressRepository.deleteAddress(uid, addressId)) {
+                is AppResult.Success -> {
+                    _uiState.update { it.copy(message = "Đã xóa địa chỉ.") }
+                }
+                is AppResult.Error -> {
+                    _uiState.update { it.copy(message = result.message) }
+                }
+            }
+        }
+    }
+
+    fun setDefaultAddress(addressId: String) {
+        val uid = _uiState.value.user.uid
+        if (uid.isBlank() || addressId.isBlank()) return
+
+        viewModelScope.launch {
+            when (val result = addressRepository.setDefaultAddress(uid, addressId)) {
+                is AppResult.Success -> {
+                    _uiState.update { it.copy(message = "Đã đặt làm địa chỉ mặc định!") }
+                }
+                is AppResult.Error -> {
+                    _uiState.update { it.copy(message = result.message) }
+                }
+            }
         }
     }
 
@@ -254,7 +431,20 @@ class ProfileViewModel @Inject constructor(
     fun signOut() {
         viewModelScope.launch {
             authRepository.signOut()
-            _uiState.update { it.copy(isLoggedOut = true) }
+            _uiState.update {
+                it.copy(
+                    user = UserProfile(
+                        uid = "",
+                        name = "",
+                        email = "",
+                        phone = "",
+                        role = UserRole.CUSTOMER,
+                    ),
+                    addresses = emptyList(),
+                    avatarUri = null,
+                    isLoggedOut = true,
+                )
+            }
         }
     }
 }

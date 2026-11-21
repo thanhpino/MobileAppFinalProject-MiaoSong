@@ -27,7 +27,16 @@ interface AuthRepository {
     suspend fun sendPasswordResetEmail(email: String): AppResult<Unit>
     suspend fun changePassword(newPassword: String): AppResult<Unit>
     suspend fun updateProfile(name: String, phone: String): AppResult<UserProfile>
+    suspend fun uploadAvatar(imageBytes: ByteArray): AppResult<String>
     suspend fun signOut()
+}
+
+interface AddressRepository {
+    fun observeAddresses(uid: String): Flow<List<DeliveryAddress>>
+    suspend fun addAddress(uid: String, address: DeliveryAddress): AppResult<String>
+    suspend fun updateAddress(uid: String, address: DeliveryAddress): AppResult<Unit>
+    suspend fun deleteAddress(uid: String, addressId: String): AppResult<Unit>
+    suspend fun setDefaultAddress(uid: String, addressId: String): AppResult<Unit>
 }
 
 interface StoreRepository {

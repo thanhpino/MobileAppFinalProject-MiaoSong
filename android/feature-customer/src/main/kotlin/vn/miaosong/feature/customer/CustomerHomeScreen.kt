@@ -25,9 +25,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LocalFireDepartment
@@ -61,8 +63,11 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -71,6 +76,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import vn.miaosong.core.designsystem.components.MiaoAnimatedCatLogo
 import vn.miaosong.core.designsystem.theme.MiaoColors
+import vn.miaosong.core.model.DeliveryAddress
 import vn.miaosong.core.model.ManualStoreStatus
 import vn.miaosong.core.model.Store
 
@@ -122,29 +128,42 @@ private val DEMO_STORES = listOf(
  */
 @Composable
 fun CustomerHomeScreen(
-    onSwitchToMerchantPreview: () -> Unit,
+    onSwitchToMerchantPreview: () -> Unit = {},
     onTriggerLoadingPreview: () -> Unit = {},
     onOpenOrderTracking: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
+    onOpenCart: () -> Unit = {},
+    onSelectStore: (String) -> Unit = {},
     initialTab: Int = 0,
     viewModel: CustomerHomeViewModel = hiltViewModel(),
 ) {
     var selectedTab by rememberSaveable(initialTab) { mutableIntStateOf(initialTab) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    // Map dữ liệu thật từ Cloud Firestore `miaosong-pro` sang StoreCard (fallback DEMO_STORES khi đang tải)
+    // Map dữ liệu thật từ Cloud Firestore `miaosong-pro` sang StoreCard
     val storeCards = if (uiState.stores.isNotEmpty()) {
         uiState.stores.map { it.toStoreCard() }
-    } else {
+    } else if (uiState.isLoading) {
         DEMO_STORES
+    } else if (uiState.allStoresCount > 0 || uiState.searchQuery.isNotBlank() || uiState.selectedCategory != null) {
+        emptyList()
+    } else {
+        DEMO_STORES.filter { demo ->
+            val matchQuery = if (uiState.searchQuery.isBlank()) true else {
+                demo.name.contains(uiState.searchQuery, ignoreCase = true) || demo.distance.contains(uiState.searchQuery, ignoreCase = true)
+            }
+            val matchCat = if (uiState.selectedCategory.isNullOrBlank()) true else {
+                demo.name.contains(uiState.selectedCategory!!, ignoreCase = true) || demo.tags.any { it.label.contains(uiState.selectedCategory!!, ignoreCase = true) }
+            }
+            matchQuery && matchCat
+        }
     }
 
     Scaffold(
         containerColor = MiaoColors.SurfaceCanvas,
         topBar = {
             StitchTopNavHeader(
-                onSwitchToMerchantPreview = onSwitchToMerchantPreview,
-                onTriggerLoadingPreview = onTriggerLoadingPreview,
+                onOpenCart = onOpenCart,
             )
         },
         bottomBar = {
@@ -212,43 +231,130 @@ fun CustomerHomeScreen(
             ) {
                 // 1. Thẻ mèo MiaoSong chào khách
                 item {
-                    MiaoGreetingBanner(onClick = onTriggerLoadingPreview)
+                    MiaoGreetingBanner(onClick = {})
                 }
 
                 // 2. Thanh chọn địa chỉ giao hàng thoáng rộng (không bị cắt trên Top Bar)
                 item {
-                    DeliveryAddressRow()
+                    DeliveryAddressRow(
+                        address = uiState.selectedAddress,
+                        onClick = viewModel::openAddressPicker,
+                    )
                 }
 
-                // 3. Thanh tìm kiếm + Trending tags
+                // 3. Thanh tìm kiếm thật + Trending tags
                 item {
-                    SearchAndTrendingSection()
+                    SearchAndTrendingSection(
+                        searchQuery = uiState.searchQuery,
+                        onSearchQueryChange = viewModel::onSearchQueryChange,
+                        onClearQuery = viewModel::clearSearchQuery,
+                        onTagClick = viewModel::onSearchQueryChange,
+                    )
                 }
 
                 // 4. Lưới danh mục món ăn (2 hàng x 4 cột)
                 item {
-                    QuickCategoryGrid()
+                    QuickCategoryGrid(
+                        selectedCategory = uiState.selectedCategory,
+                        onCategoryClick = viewModel::selectCategory,
+                    )
                 }
 
                 // 5. Banner cam khuyến mãi
                 item {
-                    PromoBannerCard(onClaimClick = onTriggerLoadingPreview)
+                    PromoBannerCard(onClaimClick = {
+                        viewModel.selectCategory("Deal 50%")
+                    })
                 }
 
                 // 6. Thanh lọc quán
                 item {
-                    FilterSortPillsRow()
+                    FilterSortPillsRow(
+                        activeFilter = uiState.activeFilter,
+                        onFilterSelect = viewModel::selectFilter,
+                    )
                 }
 
-                // 7. Danh sách quán ăn D2C realtime từ Cloud Firestore
-                items(storeCards, key = { it.id }) { store ->
-                    StoreFeedCard(
-                        store = store,
-                        onClick = onTriggerLoadingPreview,
-                    )
+                // 7. Danh sách quán ăn D2C realtime từ Cloud Firestore hoặc Empty State
+                if (storeCards.isEmpty() && !uiState.isLoading) {
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            shape = RoundedCornerShape(18.dp),
+                            border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.15f)),
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                Text(text = "🐾", fontSize = 40.sp)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Không tìm thấy quán phù hợp",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MiaoColors.OnSurface,
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = if (uiState.searchQuery.isNotBlank()) {
+                                        "Không có kết quả cho \"${uiState.searchQuery}\". Hãy thử tìm tên món hoặc đổi từ khóa nhé!"
+                                    } else {
+                                        "Hiện chưa có quán nào trong mục này. Vui lòng thử chọn danh mục khác nhé!"
+                                    },
+                                    fontSize = 12.sp,
+                                    color = MiaoColors.OnSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                )
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Button(
+                                    onClick = {
+                                        viewModel.clearSearchQuery()
+                                        if (uiState.selectedCategory != null) {
+                                            viewModel.selectCategory(uiState.selectedCategory!!)
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(999.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MiaoColors.BrandOrange,
+                                        contentColor = Color.White,
+                                    ),
+                                ) {
+                                    Text(
+                                        text = "Xem tất cả quán",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    items(storeCards, key = { it.id }) { store ->
+                        StoreFeedCard(
+                            store = store,
+                            onClick = { onSelectStore(store.id) },
+                        )
+                    }
                 }
             }
         }
+    }
+
+    // Modal chọn & thêm địa chỉ giao hàng (Step 5)
+    if (uiState.isAddressPickerVisible) {
+        AddressPickerBottomSheet(
+            addresses = uiState.addresses,
+            selectedAddress = uiState.selectedAddress,
+            onSelectAddress = viewModel::selectAddress,
+            onAddNewAddress = viewModel::addNewAddress,
+            onDismiss = viewModel::closeAddressPicker,
+        )
     }
 }
 
@@ -300,8 +406,7 @@ private fun Store.toStoreCard(): DemoStoreCard {
 
 @Composable
 private fun StitchTopNavHeader(
-    onSwitchToMerchantPreview: () -> Unit,
-    onTriggerLoadingPreview: () -> Unit,
+    onOpenCart: () -> Unit,
 ) {
     Surface(
         color = Color.White,
@@ -318,7 +423,6 @@ private fun StitchTopNavHeader(
             // Bên trái: Logo mèo tĩnh + Brand Name
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clickable { onTriggerLoadingPreview() },
             ) {
                 MiaoAnimatedCatLogo(
                     size = 40.dp,
@@ -342,43 +446,19 @@ private fun StitchTopNavHeader(
                 }
             }
 
-            // Bên phải: Các nút điều hướng nhanh (Chế độ Quán · Giỏ hàng · Thông báo)
+            // Bên phải: Các nút điều hướng nhanh (Giỏ hàng · Thông báo)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Surface(
-                    color = MiaoColors.SurfaceContainerLow,
-                    shape = RoundedCornerShape(999.dp),
-                    border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.25f)),
-                    modifier = Modifier.clickable { onSwitchToMerchantPreview() },
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Storefront,
-                            contentDescription = "Chế độ Quán",
-                            tint = MiaoColors.BrandOrange,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Text(
-                            text = "Quán",
-                            color = MiaoColors.OnSurface,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
-                }
-
                 // Nút Giỏ hàng
                 Surface(
                     color = MiaoColors.SurfaceContainerLow,
                     shape = CircleShape,
                     border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.2f)),
-                    modifier = Modifier.size(38.dp),
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clickable { onOpenCart() },
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
@@ -420,12 +500,17 @@ private fun StitchTopNavHeader(
 }
 
 @Composable
-private fun DeliveryAddressRow() {
+private fun DeliveryAddressRow(
+    address: DeliveryAddress,
+    onClick: () -> Unit,
+) {
     Surface(
         color = Color.White,
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.16f)),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
     ) {
         Row(
             modifier = Modifier
@@ -452,7 +537,7 @@ private fun DeliveryAddressRow() {
                     fontWeight = FontWeight.Medium,
                 )
                 Text(
-                    text = "19 Nguyễn Hữu Thọ, Tân Phong, Quận 7",
+                    text = address.fullText,
                     color = MiaoColors.OnSurface,
                     fontSize = 12.5.sp,
                     fontWeight = FontWeight.Bold,
@@ -463,7 +548,7 @@ private fun DeliveryAddressRow() {
             Icon(
                 imageVector = Icons.Default.KeyboardArrowDown,
                 contentDescription = "Đổi địa chỉ",
-                tint = MiaoColors.OnSurfaceVariant,
+                tint = MiaoColors.BrandOrange,
                 modifier = Modifier.size(18.dp),
             )
         }
@@ -542,31 +627,65 @@ private fun MiaoGreetingBanner(onClick: () -> Unit) {
 }
 
 @Composable
-private fun SearchAndTrendingSection() {
+private fun SearchAndTrendingSection(
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onClearQuery: () -> Unit,
+    onTagClick: (String) -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Surface(
             color = Color.White,
             shape = RoundedCornerShape(999.dp),
-            border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.18f)),
+            border = BorderStroke(
+                1.dp,
+                if (searchQuery.isNotBlank()) MiaoColors.BrandOrange else MiaoColors.BrandOrange.copy(alpha = 0.18f),
+            ),
             shadowElevation = 1.dp,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
                     imageVector = Icons.Default.Search,
                     contentDescription = null,
-                    tint = MiaoColors.OnSurfaceVariant,
+                    tint = if (searchQuery.isNotBlank()) MiaoColors.BrandOrange else MiaoColors.OnSurfaceVariant,
                     modifier = Modifier.size(20.dp),
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Tìm bún riêu, bún chả cá, cơm tấm, trà sữa...",
-                    color = MiaoColors.OnSurfaceVariant.copy(alpha = 0.75f),
-                    fontSize = 13.sp,
-                )
+                Box(modifier = Modifier.weight(1f)) {
+                    if (searchQuery.isEmpty()) {
+                        Text(
+                            text = "Tìm bún riêu, bún chả cá, cơm tấm, trà sữa...",
+                            color = MiaoColors.OnSurfaceVariant.copy(alpha = 0.75f),
+                            fontSize = 13.sp,
+                        )
+                    }
+                    BasicTextField(
+                        value = searchQuery,
+                        onValueChange = onSearchQueryChange,
+                        singleLine = true,
+                        textStyle = TextStyle(
+                            color = MiaoColors.OnSurface,
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Medium,
+                        ),
+                        cursorBrush = SolidColor(MiaoColors.BrandOrange),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (searchQuery.isNotEmpty()) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Xóa tìm kiếm",
+                        tint = MiaoColors.OnSurfaceVariant,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clickable { onClearQuery() },
+                    )
+                }
             }
         }
 
@@ -574,10 +693,14 @@ private fun SearchAndTrendingSection() {
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            val isRieuActive = searchQuery.contains("riêu", ignoreCase = true)
             Surface(
-                color = Color(0xFFFFEDD5),
+                color = if (isRieuActive) MiaoColors.BrandOrange else Color(0xFFFFEDD5),
                 shape = RoundedCornerShape(999.dp),
-                border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.25f)),
+                border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.35f)),
+                modifier = Modifier.clickable {
+                    if (isRieuActive) onClearQuery() else onTagClick("Bún riêu")
+                },
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -586,29 +709,40 @@ private fun SearchAndTrendingSection() {
                     Icon(
                         imageVector = Icons.Default.LocalFireDepartment,
                         contentDescription = null,
-                        tint = MiaoColors.BrandOrange,
+                        tint = if (isRieuActive) Color.White else MiaoColors.BrandOrange,
                         modifier = Modifier.size(14.dp),
                     )
                     Spacer(modifier = Modifier.width(3.dp))
                     Text(
                         text = "Bún riêu giảm 20%",
-                        color = MiaoColors.BrandOrange,
+                        color = if (isRieuActive) Color.White else MiaoColors.BrandOrange,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                     )
                 }
             }
-            listOf("Bún chả cá Nha Trang", "Cơm tấm sườn bì", "Trà sữa 15p").forEach { tag ->
+            listOf(
+                "Bún chả cá" to "Bún chả cá Nha Trang",
+                "Cơm tấm" to "Cơm tấm sườn bì",
+                "Trà sữa" to "Trà sữa 15p",
+            ).forEach { (keyword, displayTag) ->
+                val isTagActive = searchQuery.contains(keyword, ignoreCase = true)
                 Surface(
-                    color = Color.White,
+                    color = if (isTagActive) MiaoColors.SurfaceContainerHigh else Color.White,
                     shape = RoundedCornerShape(999.dp),
-                    border = BorderStroke(1.dp, MiaoColors.OutlineVariant),
+                    border = BorderStroke(
+                        1.dp,
+                        if (isTagActive) MiaoColors.BrandOrange else MiaoColors.OutlineVariant,
+                    ),
+                    modifier = Modifier.clickable {
+                        if (isTagActive) onClearQuery() else onTagClick(keyword)
+                    },
                 ) {
                     Text(
-                        text = tag,
-                        color = MiaoColors.OnSurface,
+                        text = displayTag,
+                        color = if (isTagActive) MiaoColors.BrandOrange else MiaoColors.OnSurface,
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = if (isTagActive) FontWeight.Bold else FontWeight.SemiBold,
                         modifier = Modifier.padding(horizontal = 11.dp, vertical = 5.dp),
                     )
                 }
@@ -625,7 +759,10 @@ private data class CategoryTile(
 )
 
 @Composable
-private fun QuickCategoryGrid() {
+private fun QuickCategoryGrid(
+    selectedCategory: String?,
+    onCategoryClick: (String) -> Unit,
+) {
     val row1 = listOf(
         CategoryTile("🍜", "Bún & Phở", "15-20p", isTealBadge = false),
         CategoryTile("🍛", "Cơm tấm", "Nóng hổi", isTealBadge = true),
@@ -646,20 +783,26 @@ private fun QuickCategoryGrid() {
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 rowItems.forEach { item ->
+                    val isSelected = selectedCategory == item.title
                     val accentColor = if (item.isTealBadge) MiaoColors.SecondaryTealBright else MiaoColors.BrandOrange
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.width(80.dp),
+                        modifier = Modifier
+                            .width(80.dp)
+                            .clickable { onCategoryClick(item.title) },
                     ) {
                         Box(
                             modifier = Modifier.padding(top = 6.dp, end = 6.dp),
                             contentAlignment = Alignment.Center,
                         ) {
                             Surface(
-                                color = Color.White,
+                                color = if (isSelected) Color(0xFFFFEADF) else Color.White,
                                 shape = RoundedCornerShape(16.dp),
-                                border = BorderStroke(1.dp, accentColor.copy(alpha = 0.18f)),
-                                shadowElevation = 1.dp,
+                                border = BorderStroke(
+                                    if (isSelected) 2.dp else 1.dp,
+                                    if (isSelected) MiaoColors.BrandOrange else accentColor.copy(alpha = 0.18f),
+                                ),
+                                shadowElevation = if (isSelected) 3.dp else 1.dp,
                                 modifier = Modifier.size(52.dp),
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
@@ -691,9 +834,9 @@ private fun QuickCategoryGrid() {
                         Spacer(modifier = Modifier.height(5.dp))
                         Text(
                             text = item.title,
-                            color = MiaoColors.OnSurface,
+                            color = if (isSelected) MiaoColors.BrandOrange else MiaoColors.OnSurface,
                             fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold,
                             maxLines = 1,
                         )
                     }
@@ -780,14 +923,20 @@ private fun PromoBannerCard(onClaimClick: () -> Unit) {
 }
 
 @Composable
-private fun FilterSortPillsRow() {
+private fun FilterSortPillsRow(
+    activeFilter: StoreSortFilter,
+    onFilterSelect: (StoreSortFilter) -> Unit,
+) {
     Row(
         modifier = Modifier.horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        val isNearby = activeFilter == StoreSortFilter.NEARBY
         Surface(
-            color = MiaoColors.OnSurface,
+            color = if (isNearby) MiaoColors.OnSurface else Color.White,
             shape = RoundedCornerShape(999.dp),
+            border = if (isNearby) null else BorderStroke(1.dp, MiaoColors.OutlineVariant),
+            modifier = Modifier.clickable { onFilterSelect(StoreSortFilter.NEARBY) },
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
@@ -795,41 +944,47 @@ private fun FilterSortPillsRow() {
             ) {
                 Text(
                     text = "Gần tôi nhất",
-                    color = MiaoColors.SurfaceCanvas,
+                    color = if (isNearby) MiaoColors.SurfaceCanvas else MiaoColors.OnSurface,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                 )
                 Icon(
                     imageVector = Icons.Default.KeyboardArrowDown,
                     contentDescription = null,
-                    tint = MiaoColors.SurfaceCanvas,
+                    tint = if (isNearby) MiaoColors.SurfaceCanvas else MiaoColors.OnSurface,
                     modifier = Modifier.size(16.dp),
                 )
             }
         }
+
+        val isFastest = activeFilter == StoreSortFilter.FASTEST
         Surface(
-            color = Color(0xFFE6FAF8),
+            color = if (isFastest) MiaoColors.SecondaryTeal else Color(0xFFE6FAF8),
             shape = RoundedCornerShape(999.dp),
-            border = BorderStroke(1.dp, MiaoColors.SecondaryTealBright.copy(alpha = 0.35f)),
+            border = if (isFastest) null else BorderStroke(1.dp, MiaoColors.SecondaryTealBright.copy(alpha = 0.35f)),
+            modifier = Modifier.clickable { onFilterSelect(StoreSortFilter.FASTEST) },
         ) {
             Text(
                 text = "Giao nhanh nhất ⚡",
-                color = MiaoColors.SecondaryTeal,
+                color = if (isFastest) Color.White else MiaoColors.SecondaryTeal,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
             )
         }
+
+        val isTopRated = activeFilter == StoreSortFilter.TOP_RATED
         Surface(
-            color = Color.White,
+            color = if (isTopRated) MiaoColors.BrandOrange else Color.White,
             shape = RoundedCornerShape(999.dp),
-            border = BorderStroke(1.dp, MiaoColors.OutlineVariant),
+            border = if (isTopRated) null else BorderStroke(1.dp, MiaoColors.OutlineVariant),
+            modifier = Modifier.clickable { onFilterSelect(StoreSortFilter.TOP_RATED) },
         ) {
             Text(
                 text = "Đánh giá tốt 4.8★+",
-                color = MiaoColors.OnSurface,
+                color = if (isTopRated) Color.White else MiaoColors.OnSurface,
                 fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = if (isTopRated) FontWeight.Bold else FontWeight.SemiBold,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
             )
         }
