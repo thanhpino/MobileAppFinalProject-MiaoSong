@@ -80,4 +80,10 @@ interface OrderRepository {
     suspend fun markReady(orderId: String): AppResult<Unit>
     suspend fun dispatchDriver(orderId: String): AppResult<Unit>
     suspend fun mockDeliveryAdvance(orderId: String, targetStatus: OrderStatus): AppResult<Unit>
+    suspend fun submitReview(
+        orderId: String,
+        stars: Int,
+        tags: List<String>,
+        comment: String,
+    ): AppResult<Unit>
 }
