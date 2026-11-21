@@ -20,7 +20,9 @@ import vn.miaosong.core.model.MenuItem
 import vn.miaosong.core.model.Order
 import vn.miaosong.core.model.OrderStatus
 import vn.miaosong.core.model.Review
+import vn.miaosong.core.model.SpecialDay
 import vn.miaosong.core.model.Store
+import vn.miaosong.core.model.TimeSlot
 import vn.miaosong.core.model.UserProfile
 import vn.miaosong.core.model.Voucher
 import javax.inject.Inject
@@ -162,6 +164,37 @@ class MerchantViewModel @Inject constructor(
         }
     }
 
+    fun updateDailyHours(openTime: String, closeTime: String) {
+        val days = listOf("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+        val weekly = days.associateWith { listOf(TimeSlot(open = openTime.trim(), close = closeTime.trim())) }
+        val existingSpecials = uiState.value.store?.schedule?.specialDays.orEmpty()
+        runAction("Đã cập nhật lịch hoạt động ($openTime – $closeTime)") {
+            catalogRepository.updateStoreSchedule(uiState.value.storeId, weekly, existingSpecials)
+        }
+    }
+
+    fun addSpecialDay(date: String, isClosed: Boolean, openTime: String = "08:00", closeTime: String = "20:00") {
+        val current = uiState.value.store?.schedule
+        val weekly = current?.weeklySchedule.orEmpty()
+        val updated = current?.specialDays.orEmpty().filterNot { it.date == date.trim() } + SpecialDay(
+            date = date.trim(),
+            isClosed = isClosed,
+            slots = if (isClosed) emptyList() else listOf(TimeSlot(openTime.trim(), closeTime.trim())),
+        )
+        runAction("Đã lưu lịch tùy chỉnh ngày $date") {
+            catalogRepository.updateStoreSchedule(uiState.value.storeId, weekly, updated)
+        }
+    }
+
+    fun removeSpecialDay(date: String) {
+        val current = uiState.value.store?.schedule
+        val weekly = current?.weeklySchedule.orEmpty()
+        val updated = current?.specialDays.orEmpty().filterNot { it.date == date }
+        runAction("Đã xóa lịch tùy chỉnh ngày $date") {
+            catalogRepository.updateStoreSchedule(uiState.value.storeId, weekly, updated)
+        }
+    }
+
     fun uploadStoreAvatar(bytes: ByteArray) {
         viewModelScope.launch {
             busyState.value = true
@@ -185,7 +218,7 @@ class MerchantViewModel @Inject constructor(
     }
 
     fun confirmOrder(orderId: String) {
-        runAction("Đã nhận đơn — Chuyển bếp chuẩn bị món!") {
+        runAction("Đã xác nhận nhận đơn — Khách nhận thông báo 'Quán đang chuẩn bị món'") {
             orderRepository.confirmOrder(orderId)
         }
     }

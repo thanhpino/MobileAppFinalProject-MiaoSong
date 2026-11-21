@@ -12,6 +12,8 @@ import vn.miaosong.core.domain.MerchantCatalogRepository
 import vn.miaosong.core.model.ManualStoreStatus
 import vn.miaosong.core.model.MenuCategory
 import vn.miaosong.core.model.MenuItem
+import vn.miaosong.core.model.SpecialDay
+import vn.miaosong.core.model.TimeSlot
 import vn.miaosong.core.model.Voucher
 import java.io.ByteArrayOutputStream
 import java.util.Date
@@ -147,6 +149,29 @@ class MerchantCatalogRepositoryImpl @Inject constructor(
                 "name" to name.trim(),
                 "address" to address.trim(),
                 "phone" to phone.trim(),
+            ),
+        ).await()
+    }
+
+    override suspend fun updateStoreSchedule(
+        storeId: String,
+        weeklySchedule: Map<String, List<TimeSlot>>,
+        specialDays: List<SpecialDay>,
+    ): AppResult<Unit> = runCatchingResult {
+        val weeklyPayload = weeklySchedule.mapValues { (_, slots) ->
+            slots.map { mapOf("open" to it.open, "close" to it.close) }
+        }
+        val specialPayload = specialDays.map { d ->
+            mapOf(
+                "date" to d.date,
+                "isClosed" to d.isClosed,
+                "slots" to d.slots.map { mapOf("open" to it.open, "close" to it.close) },
+            )
+        }
+        storeDoc(storeId).update(
+            mapOf(
+                "weeklySchedule" to weeklyPayload,
+                "specialDays" to specialPayload,
             ),
         ).await()
     }

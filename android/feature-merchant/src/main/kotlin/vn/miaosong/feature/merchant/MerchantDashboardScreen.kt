@@ -1,5 +1,8 @@
 package vn.miaosong.feature.merchant
 
+import android.content.Intent
+import android.media.RingtoneManager
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -113,8 +116,27 @@ fun MerchantDashboardScreen(
     var showAddVoucherDialog by remember { mutableStateOf(false) }
     var showLoginDialog by remember { mutableStateOf(false) }
     var hasAutoPromptedLogin by rememberSaveable { mutableStateOf(false) }
+    var seenPlacedOrderIds by remember { mutableStateOf<Set<String>>(emptySet()) }
 
+    val context = LocalContext.current
     val isMerchantAuthenticated = uiState.currentUser?.role == UserRole.MERCHANT
+
+    // Báo chuông tại thiết bị quán ngay khi có đơn mới (PLACED)
+    LaunchedEffect(uiState.orders) {
+        val currentPlacedIds = uiState.orders
+            .filter { it.status == OrderStatus.PLACED }
+            .map { it.id }
+            .toSet()
+        val hasBrandNewOrder = currentPlacedIds.any { it !in seenPlacedOrderIds }
+        if (hasBrandNewOrder) {
+            runCatching {
+                val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                RingtoneManager.getRingtone(context, uri)?.play()
+            }
+            snackbarHostState.showSnackbar("🔔 Có đơn hàng mới! Vào tab Bếp (KDS) để xác nhận nhận đơn.")
+        }
+        seenPlacedOrderIds = currentPlacedIds
+    }
 
     LaunchedEffect(uiState.isAuthResolved, isMerchantAuthenticated) {
         if (uiState.isAuthResolved && !isMerchantAuthenticated && !hasAutoPromptedLogin) {
@@ -208,6 +230,9 @@ fun MerchantDashboardScreen(
                     uiState = uiState,
                     onUpdateStatus = viewModel::updateStoreStatus,
                     onUpdateStoreInfo = viewModel::updateStoreInfo,
+                    onUpdateDailyHours = viewModel::updateDailyHours,
+                    onAddSpecialDay = viewModel::addSpecialDay,
+                    onRemoveSpecialDay = viewModel::removeSpecialDay,
                     onAvatarPicked = viewModel::uploadStoreAvatar,
                     onSignInClick = { showLoginDialog = true },
                     onSwitchToCustomer = onSwitchToCustomerPreview,
@@ -852,9 +877,51 @@ private fun MerchantKitchenTab(
                             isAllergy = false,
                         )
                         KitchenNoteBadge(
-                            note = "Dị ứng đậu phộng — tuyệt đối không rắc",
+                            note = "Khách dị ứng với đậu phộng",
                             isAllergy = true,
                         )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Surface(
+                                color = MiaoColors.SurfaceContainerLow,
+                                shape = RoundedCornerShape(999.dp),
+                                border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.3f)),
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(vertical = 11.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = "Báo xong món",
+                                        color = MiaoColors.BrandOrangeDark,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.5.sp,
+                                    )
+                                }
+                            }
+                            Surface(
+                                color = MiaoColors.BrandOrange,
+                                shape = RoundedCornerShape(999.dp),
+                                modifier = Modifier.weight(1.2f),
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(vertical = 11.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = "Gọi shipper Lalamove",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.5.sp,
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -966,25 +1033,53 @@ private fun MerchantOrderKdsCard(
                 fontWeight = FontWeight.Bold,
             )
 
-            // Thông tin tài xế Lalamove khi đã được gán
+            // Thông tin tài xế Lalamove khi đã được gán + nút gọi điện
             order.delivery.driver?.let { driver ->
+                val dialContext = LocalContext.current
                 Surface(
                     color = Color(0xFFE6FAF8),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            text = "Tài xế Lalamove: ${driver.name}",
-                            color = MiaoColors.SecondaryTeal,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Text(
-                            text = "SĐT: ${driver.phone} · Biển số: ${driver.plate}",
-                            color = MiaoColors.OnSurface,
-                            fontSize = 12.sp,
-                        )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                text = "Tài xế Lalamove: ${driver.name}",
+                                color = MiaoColors.SecondaryTeal,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                                text = "SĐT: ${driver.phone} · Biển số: ${driver.plate}",
+                                color = MiaoColors.OnSurface,
+                                fontSize = 12.sp,
+                            )
+                        }
+                        if (driver.phone.isNotBlank()) {
+                            Surface(
+                                color = MiaoColors.SecondaryTeal,
+                                shape = RoundedCornerShape(999.dp),
+                                modifier = Modifier.clickable {
+                                    dialContext.startActivity(
+                                        Intent(Intent.ACTION_DIAL, Uri.parse("tel:${driver.phone}")),
+                                    )
+                                },
+                            ) {
+                                Text(
+                                    text = "Gọi tài xế",
+                                    color = Color.White,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -1001,7 +1096,7 @@ private fun MerchantOrderKdsCard(
                             shape = RoundedCornerShape(999.dp),
                             border = BorderStroke(1.dp, Color(0xFFD92D20).copy(alpha = 0.35f)),
                             modifier = Modifier
-                                .weight(1f)
+                                .weight(0.9f)
                                 .clickable { onRejectClick() },
                         ) {
                             Box(
@@ -1020,7 +1115,7 @@ private fun MerchantOrderKdsCard(
                             color = MiaoColors.BrandOrange,
                             shape = RoundedCornerShape(999.dp),
                             modifier = Modifier
-                                .weight(1.4f)
+                                .weight(1.5f)
                                 .clickable { onConfirm() },
                         ) {
                             Box(
@@ -1028,7 +1123,7 @@ private fun MerchantOrderKdsCard(
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
-                                    text = "Nhận đơn",
+                                    text = "Xác nhận nhận đơn",
                                     color = Color.White,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp,
@@ -1039,13 +1134,13 @@ private fun MerchantOrderKdsCard(
                 }
                 OrderStatus.CONFIRMED -> {
                     MiaoPrimaryButton(
-                        text = "Đã làm xong món (Sẵn sàng giao)",
+                        text = "Báo xong món (Sẵn sàng giao)",
                         onClick = onMarkReady,
                     )
                 }
                 OrderStatus.READY -> {
                     MiaoPrimaryButton(
-                        text = "Gọi tài xế Lalamove ngay",
+                        text = "Gọi shipper Lalamove",
                         onClick = onDispatchDriver,
                     )
                 }
@@ -1130,12 +1225,17 @@ private fun MerchantStoreProfileTab(
     uiState: MerchantUiState,
     onUpdateStatus: (ManualStoreStatus, Int?) -> Unit,
     onUpdateStoreInfo: (String, String, String) -> Unit,
+    onUpdateDailyHours: (String, String) -> Unit,
+    onAddSpecialDay: (String, Boolean, String, String) -> Unit,
+    onRemoveSpecialDay: (String) -> Unit,
     onAvatarPicked: (ByteArray) -> Unit,
     onSignInClick: () -> Unit,
     onSwitchToCustomer: () -> Unit,
 ) {
     val context = LocalContext.current
     var showEditInfoDialog by remember { mutableStateOf(false) }
+    var showDailyHoursDialog by remember { mutableStateOf(false) }
+    var showSpecialDayDialog by remember { mutableStateOf(false) }
     val photoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
     ) { uri ->
@@ -1148,6 +1248,9 @@ private fun MerchantStoreProfileTab(
     }
 
     val store = uiState.store
+    val firstSlot = store?.schedule?.weeklySchedule?.values?.firstOrNull()?.firstOrNull()
+    val dailyHoursText = if (firstSlot != null) "${firstSlot.open} – ${firstSlot.close}" else "07:00 – 21:00"
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1155,13 +1258,32 @@ private fun MerchantStoreProfileTab(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // 1. Thẻ Hồ sơ Quán + Avatar + Nút chỉnh sửa thông tin & địa chỉ
+        // 1. Thẻ Hồ sơ Quán — tiêu đề + nút Chỉnh sửa nằm ngay trên đầu
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Thông tin & địa chỉ quán",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MiaoColors.OnSurface,
+                    )
+                    Text(
+                        text = "Chỉnh sửa",
+                        color = MiaoColors.BrandOrange,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { showEditInfoDialog = true },
+                    )
+                }
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -1209,13 +1331,14 @@ private fun MerchantStoreProfileTab(
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
                             text = store?.name ?: "Bún Riêu Cô Ba",
-                            style = MaterialTheme.typography.headlineSmall,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.ExtraBold,
                             color = MiaoColors.OnSurface,
                         )
                         Text(
                             text = store?.address ?: "420 Nguyễn Thị Thập, Q.7",
                             color = MiaoColors.OnSurfaceVariant,
-                            fontSize = 12.sp,
+                            fontSize = 12.5.sp,
                         )
                         if (!store?.phone.isNullOrBlank()) {
                             Text(
@@ -1225,23 +1348,6 @@ private fun MerchantStoreProfileTab(
                             )
                         }
                     }
-                }
-
-                Surface(
-                    color = MiaoColors.SurfaceContainerLow,
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.25f)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showEditInfoDialog = true },
-                ) {
-                    Text(
-                        text = "Chỉnh sửa thông tin & địa chỉ quán",
-                        color = MiaoColors.BrandOrangeDark,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                    )
                 }
             }
         }
@@ -1291,7 +1397,131 @@ private fun MerchantStoreProfileTab(
             }
         }
 
-        // 3. Lịch sử đánh giá từ khách hàng (Mục 5 đề bài)
+        // 3. Lịch hoạt động thường ngày & Lịch mở/đóng cửa tùy chỉnh (Mục 3 đề bài)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Lịch mở cửa & ngày lễ",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MiaoColors.OnSurface,
+                    )
+                    Text(
+                        text = "Chỉnh giờ",
+                        color = MiaoColors.BrandOrange,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { showDailyHoursDialog = true },
+                    )
+                }
+
+                Surface(
+                    color = MiaoColors.SurfaceCanvas,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "Thứ 2 – Chủ nhật",
+                            color = MiaoColors.OnSurface,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = dailyHoursText,
+                            color = MiaoColors.SecondaryTeal,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Lịch mở/đóng cửa tùy chỉnh",
+                        color = MiaoColors.OnSurfaceVariant,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = "+ Thêm ngày",
+                        color = MiaoColors.BrandOrange,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { showSpecialDayDialog = true },
+                    )
+                }
+
+                val specialDays = store?.schedule?.specialDays.orEmpty()
+                if (specialDays.isEmpty()) {
+                    Text(
+                        text = "Chưa có ngày nghỉ lễ hoặc giờ mở cửa đặc biệt.",
+                        color = MiaoColors.OnSurfaceVariant,
+                        fontSize = 12.sp,
+                    )
+                } else {
+                    specialDays.forEach { day ->
+                        val desc = if (day.isClosed) {
+                            "Nghỉ cả ngày"
+                        } else {
+                            val s = day.slots.firstOrNull()
+                            if (s != null) "Mở ${s.open} – ${s.close}" else "Giờ tùy chỉnh"
+                        }
+                        Surface(
+                            color = MiaoColors.SurfaceCanvas,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = "${day.date} · $desc",
+                                    color = MiaoColors.OnSurface,
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                                IconButton(
+                                    onClick = { onRemoveSpecialDay(day.date) },
+                                    modifier = Modifier.size(28.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.DeleteOutline,
+                                        contentDescription = "Xóa ngày",
+                                        tint = MiaoColors.OnSurfaceVariant,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. Lịch sử đánh giá từ khách hàng (Mục 5 đề bài)
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(18.dp),
@@ -1326,7 +1556,7 @@ private fun MerchantStoreProfileTab(
 
                 if (uiState.reviews.isEmpty()) {
                     Text(
-                        text = "Chưa có đánh giá mới từ khách hàng. Các đánh giá 1–5 sao sau khi giao thành công sẽ hiển thị realtime tại đây.",
+                        text = "Quán bạn hiện chưa có đánh giá nào từ khách hàng.",
                         color = MiaoColors.OnSurfaceVariant,
                         fontSize = 12.5.sp,
                     )
@@ -1394,6 +1624,138 @@ private fun MerchantStoreProfileTab(
             },
         )
     }
+
+    if (showDailyHoursDialog) {
+        EditDailyHoursDialog(
+            initialOpen = firstSlot?.open ?: "07:00",
+            initialClose = firstSlot?.close ?: "21:00",
+            onDismiss = { showDailyHoursDialog = false },
+            onConfirm = { open, close ->
+                onUpdateDailyHours(open, close)
+                showDailyHoursDialog = false
+            },
+        )
+    }
+
+    if (showSpecialDayDialog) {
+        AddSpecialDayDialog(
+            onDismiss = { showSpecialDayDialog = false },
+            onConfirm = { date, isClosed, open, close ->
+                onAddSpecialDay(date, isClosed, open, close)
+                showSpecialDayDialog = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun EditDailyHoursDialog(
+    initialOpen: String,
+    initialClose: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String, String) -> Unit,
+) {
+    var openTime by remember { mutableStateOf(initialOpen) }
+    var closeTime by remember { mutableStateOf(initialClose) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.White,
+        title = { Text("Giờ hoạt động hàng ngày", fontWeight = FontWeight.Bold, color = MiaoColors.OnSurface) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = openTime,
+                    onValueChange = { openTime = it },
+                    label = { Text("Giờ mở cửa (VD: 07:00)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = closeTime,
+                    onValueChange = { closeTime = it },
+                    label = { Text("Giờ đóng cửa (VD: 21:00)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = openTime.isNotBlank() && closeTime.isNotBlank(),
+                onClick = { onConfirm(openTime, closeTime) },
+            ) { Text("Lưu lịch", color = MiaoColors.BrandOrange, fontWeight = FontWeight.Bold) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Hủy") } },
+    )
+}
+
+@Composable
+private fun AddSpecialDayDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String, Boolean, String, String) -> Unit,
+) {
+    var date by remember { mutableStateOf("2026-11-30") }
+    var isClosed by remember { mutableStateOf(true) }
+    var openTime by remember { mutableStateOf("08:00") }
+    var closeTime by remember { mutableStateOf("18:00") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.White,
+        title = { Text("Thêm lịch mở/đóng tùy chỉnh", fontWeight = FontWeight.Bold, color = MiaoColors.OnSurface) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                OutlinedTextField(
+                    value = date,
+                    onValueChange = { date = it },
+                    label = { Text("Ngày áp dụng (YYYY-MM-DD)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Đóng cửa cả ngày", fontSize = 13.5.sp, color = MiaoColors.OnSurface)
+                    Switch(
+                        checked = isClosed,
+                        onCheckedChange = { isClosed = it },
+                        colors = SwitchDefaults.colors(checkedTrackColor = MiaoColors.BrandOrange),
+                    )
+                }
+                if (!isClosed) {
+                    OutlinedTextField(
+                        value = openTime,
+                        onValueChange = { openTime = it },
+                        label = { Text("Giờ mở cửa") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = closeTime,
+                        onValueChange = { closeTime = it },
+                        label = { Text("Giờ đóng cửa") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = date.isNotBlank(),
+                onClick = { onConfirm(date, isClosed, openTime, closeTime) },
+            ) { Text("Lưu ngày", color = MiaoColors.BrandOrange, fontWeight = FontWeight.Bold) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Hủy") } },
+    )
 }
 
 @Composable

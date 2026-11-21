@@ -12,7 +12,9 @@ import vn.miaosong.core.model.Order
 import vn.miaosong.core.model.OrderStatus
 import vn.miaosong.core.model.PaymentMethod
 import vn.miaosong.core.model.Review
+import vn.miaosong.core.model.SpecialDay
 import vn.miaosong.core.model.Store
+import vn.miaosong.core.model.TimeSlot
 import vn.miaosong.core.model.UserProfile
 import vn.miaosong.core.model.Voucher
 
@@ -42,6 +44,11 @@ interface MerchantCatalogRepository {
     suspend fun deleteVoucher(storeId: String, voucherId: String): AppResult<Unit>
     suspend fun updateStoreStatus(storeId: String, status: ManualStoreStatus, busyUntilEpochMs: Long?): AppResult<Unit>
     suspend fun updateStoreInfo(storeId: String, name: String, address: String, phone: String): AppResult<Unit>
+    suspend fun updateStoreSchedule(
+        storeId: String,
+        weeklySchedule: Map<String, List<TimeSlot>>,
+        specialDays: List<SpecialDay>,
+    ): AppResult<Unit>
     suspend fun uploadStoreAvatar(storeId: String, imageBytes: ByteArray): AppResult<String>
     suspend fun uploadMenuItemImage(storeId: String, itemId: String, imageBytes: ByteArray): AppResult<String>
 }
