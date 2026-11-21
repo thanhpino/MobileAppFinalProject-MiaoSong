@@ -70,7 +70,7 @@ class MainActivity : ComponentActivity() {
                 var homeInitialTab by rememberSaveable { mutableStateOf(0) }
                 var isLoading by rememberSaveable { mutableStateOf(false) }
                 var loadingMessage by rememberSaveable {
-                    mutableStateOf("Đang tải quán ngon quanh bạn...")
+                    mutableStateOf("🍜 Tinh hoa ẩm thực Việt ✨")
                 }
                 var loadingDurationMs by rememberSaveable { mutableStateOf(2200L) }
 
@@ -173,7 +173,7 @@ class MainActivity : ComponentActivity() {
                                 activeRole = UserRole.MERCHANT
                             },
                             onTriggerLoadingPreview = {
-                                loadingMessage = "Đang tải quán ngon quanh bạn..."
+                                loadingMessage = "🍜 Tinh hoa ẩm thực Việt ✨"
                                 loadingDurationMs = 800L
                                 isLoading = true
                             },
