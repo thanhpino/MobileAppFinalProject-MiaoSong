@@ -86,6 +86,14 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                LaunchedEffect(activeRole) {
+                    if (activeRole == UserRole.MERCHANT) {
+                        MerchantOrderMonitorService.start(this@MainActivity)
+                    } else {
+                        MerchantOrderMonitorService.stop(this@MainActivity)
+                    }
+                }
+
                 LaunchedEffect(isLoading, loadingMessage) {
                     if (isLoading) {
                         delay(loadingDurationMs)
