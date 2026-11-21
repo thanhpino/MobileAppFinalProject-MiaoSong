@@ -88,6 +88,8 @@ import vn.miaosong.core.model.MenuItem
 import vn.miaosong.core.model.MenuOption
 import vn.miaosong.core.model.OptionGroup
 import vn.miaosong.core.model.OptionGroupType
+import vn.miaosong.core.model.Order
+import vn.miaosong.core.model.OrderStatus
 import vn.miaosong.core.model.UserRole
 import vn.miaosong.core.model.Voucher
 import vn.miaosong.core.model.VoucherType
@@ -194,7 +196,14 @@ fun MerchantDashboardScreen(
                     onToggleActive = viewModel::toggleVoucherActive,
                     onDelete = viewModel::deleteVoucher,
                 )
-                2 -> MerchantKitchenTab()
+                2 -> MerchantKitchenTab(
+                    orders = uiState.orders,
+                    onConfirmOrder = viewModel::confirmOrder,
+                    onRejectOrder = viewModel::rejectOrder,
+                    onMarkReady = viewModel::markOrderReady,
+                    onDispatchDriver = viewModel::dispatchDriver,
+                    onAdvanceMockDelivery = viewModel::advanceMockDelivery,
+                )
                 3 -> MerchantStoreProfileTab(
                     uiState = uiState,
                     onUpdateStatus = viewModel::updateStoreStatus,
@@ -760,42 +769,347 @@ private fun MerchantVoucherTab(
 }
 
 @Composable
-private fun MerchantKitchenTab() {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+private fun MerchantKitchenTab(
+    orders: List<Order>,
+    onConfirmOrder: (String) -> Unit,
+    onRejectOrder: (String, String, String) -> Unit,
+    onMarkReady: (String) -> Unit,
+    onDispatchDriver: (String) -> Unit,
+    onAdvanceMockDelivery: (String, OrderStatus) -> Unit,
+) {
+    var rejectingOrder by remember { mutableStateOf<Order?>(null) }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text(
-            text = "Màn hình Bếp (KDS)",
-            style = MaterialTheme.typography.headlineSmall,
-            color = MiaoColors.OnSurface,
-        )
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.2f)),
-        ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = "Ticket #MS-261121-0012 · Đang chuẩn bị",
+                    text = "Màn hình Bếp & Điều phối (${orders.size})",
                     style = MaterialTheme.typography.headlineSmall,
                     color = MiaoColors.OnSurface,
                 )
                 Text(
-                    text = "1x Bún Riêu Cua Đặc Biệt (Tô lớn · Thêm chả cá)",
+                    text = "Nhận đơn, xem ghi chú dị ứng và gọi tài xế Lalamove tự động.",
+                    color = MiaoColors.OnSurfaceVariant,
+                    fontSize = 12.sp,
+                )
+            }
+        }
+
+        if (orders.isEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.2f)),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "Mã đơn #MS-261121-0012",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = MiaoColors.OnSurface,
+                            )
+                            Surface(
+                                color = Color(0xFFE6FAF8),
+                                shape = RoundedCornerShape(999.dp),
+                            ) {
+                                Text(
+                                    text = "Đơn mẫu · Đang chuẩn bị",
+                                    color = MiaoColors.SecondaryTeal,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                )
+                            }
+                        }
+                        Text(
+                            text = "1x Bún Riêu Cua Đặc Biệt (Tô lớn · Thêm chả cá)",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MiaoColors.OnSurface,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        KitchenNoteBadge(
+                            note = "Không hành, để mắm tôm riêng",
+                            isAllergy = false,
+                        )
+                        KitchenNoteBadge(
+                            note = "Dị ứng đậu phộng — tuyệt đối không rắc",
+                            isAllergy = true,
+                        )
+                    }
+                }
+            }
+        } else {
+            items(orders, key = { it.id }) { order ->
+                MerchantOrderKdsCard(
+                    order = order,
+                    onConfirm = { onConfirmOrder(order.id) },
+                    onRejectClick = { rejectingOrder = order },
+                    onMarkReady = { onMarkReady(order.id) },
+                    onDispatchDriver = { onDispatchDriver(order.id) },
+                    onAdvanceMockDelivery = { nextStatus -> onAdvanceMockDelivery(order.id, nextStatus) },
+                )
+            }
+        }
+    }
+
+    rejectingOrder?.let { target ->
+        RejectOrderDialog(
+            orderCode = target.code,
+            onDismiss = { rejectingOrder = null },
+            onConfirm = { code, text ->
+                onRejectOrder(target.id, code, text)
+                rejectingOrder = null
+            },
+        )
+    }
+}
+
+@Composable
+private fun MerchantOrderKdsCard(
+    order: Order,
+    onConfirm: () -> Unit,
+    onRejectClick: () -> Unit,
+    onMarkReady: () -> Unit,
+    onDispatchDriver: () -> Unit,
+    onAdvanceMockDelivery: (OrderStatus) -> Unit,
+) {
+    val (statusLabel, statusBg, statusFg) = when (order.status) {
+        OrderStatus.PENDING_PAYMENT -> Triple("Chờ thanh toán", Color(0xFFFFF3CD), Color(0xFF785A00))
+        OrderStatus.PLACED -> Triple("Đơn mới", Color(0xFFFFEADF), MiaoColors.BrandOrangeDark)
+        OrderStatus.CONFIRMED -> Triple("Đang chuẩn bị", Color(0xFFE6FAF8), MiaoColors.SecondaryTeal)
+        OrderStatus.READY -> Triple("Sẵn sàng giao", Color(0xFFE6FAF8), MiaoColors.SecondaryTeal)
+        OrderStatus.FINDING_DRIVER -> Triple("Đang tìm tài xế", Color(0xFFFFF3CD), Color(0xFF785A00))
+        OrderStatus.DRIVER_ASSIGNED, OrderStatus.ARRIVED_AT_STORE -> Triple("Tài xế đang đến lấy", Color(0xFFE6FAF8), MiaoColors.SecondaryTeal)
+        OrderStatus.PICKED_UP, OrderStatus.DELIVERING -> Triple("Đang giao khách", Color(0xFFE6FAF8), MiaoColors.SecondaryTeal)
+        OrderStatus.COMPLETED -> Triple("Hoàn thành", Color(0xFFE6FAF8), MiaoColors.SecondaryTeal)
+        OrderStatus.REJECTED, OrderStatus.CANCELLED, OrderStatus.DELIVERY_FAILED -> Triple("Đã hủy / Từ chối", Color(0xFFFFDAD6), Color(0xFF93000A))
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.2f)),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Mã đơn #${order.code}",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MiaoColors.OnSurface,
+                )
+                Surface(color = statusBg, shape = RoundedCornerShape(999.dp)) {
+                    Text(
+                        text = statusLabel,
+                        color = statusFg,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    )
+                }
+            }
+
+            // Danh sách món & ghi chú / cảnh báo dị ứng
+            order.items.forEach { item ->
+                val details = buildList {
+                    if (item.sizeName.isNotBlank()) add(item.sizeName)
+                    if (item.toppingNames.isNotEmpty()) add(item.toppingNames.joinToString(", "))
+                }.joinToString(" · ")
+                Text(
+                    text = "${item.quantity}x ${item.itemName}" + if (details.isNotBlank()) " ($details)" else "",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MiaoColors.OnSurface,
                     fontWeight = FontWeight.Bold,
                 )
-                KitchenNoteBadge(note = "Không hành, để mắm tôm riêng", isAllergy = false)
-                KitchenNoteBadge(note = "Dị ứng đậu phộng — tuyệt đối không rắc", isAllergy = true)
+                if (item.note.isNotBlank()) {
+                    val isAllergy = item.note.contains("dị ứng", ignoreCase = true) ||
+                        item.note.contains("allergy", ignoreCase = true) ||
+                        item.note.contains("đậu phộng", ignoreCase = true)
+                    KitchenNoteBadge(note = item.note, isAllergy = isAllergy)
+                }
+            }
+
+            Text(
+                text = "Tổng thu: ${MoneyFormatter.formatVnd(order.pricing.total)} · ${order.payment.method.name}",
+                color = MiaoColors.BrandOrangeDark,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+            )
+
+            // Thông tin tài xế Lalamove khi đã được gán
+            order.delivery.driver?.let { driver ->
+                Surface(
+                    color = Color(0xFFE6FAF8),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = "Tài xế Lalamove: ${driver.name}",
+                            color = MiaoColors.SecondaryTeal,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            text = "SĐT: ${driver.phone} · Biển số: ${driver.plate}",
+                            color = MiaoColors.OnSurface,
+                            fontSize = 12.sp,
+                        )
+                    }
+                }
+            }
+
+            // Nút thao tác theo trạng thái đơn hàng
+            when (order.status) {
+                OrderStatus.PLACED -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Surface(
+                            color = Color(0xFFFFF1F0),
+                            shape = RoundedCornerShape(999.dp),
+                            border = BorderStroke(1.dp, Color(0xFFD92D20).copy(alpha = 0.35f)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { onRejectClick() },
+                        ) {
+                            Box(
+                                modifier = Modifier.padding(vertical = 12.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = "Từ chối",
+                                    color = Color(0xFFD92D20),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                )
+                            }
+                        }
+                        Surface(
+                            color = MiaoColors.BrandOrange,
+                            shape = RoundedCornerShape(999.dp),
+                            modifier = Modifier
+                                .weight(1.4f)
+                                .clickable { onConfirm() },
+                        ) {
+                            Box(
+                                modifier = Modifier.padding(vertical = 12.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = "Nhận đơn",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                )
+                            }
+                        }
+                    }
+                }
+                OrderStatus.CONFIRMED -> {
+                    MiaoPrimaryButton(
+                        text = "Đã làm xong món (Sẵn sàng giao)",
+                        onClick = onMarkReady,
+                    )
+                }
+                OrderStatus.READY -> {
+                    MiaoPrimaryButton(
+                        text = "Gọi tài xế Lalamove ngay",
+                        onClick = onDispatchDriver,
+                    )
+                }
+                OrderStatus.FINDING_DRIVER -> {
+                    TextButton(onClick = { onAdvanceMockDelivery(OrderStatus.DRIVER_ASSIGNED) }) {
+                        Text("Giả lập: Tài xế nhận chuyến (Demo)", color = MiaoColors.SecondaryTeal, fontWeight = FontWeight.Bold)
+                    }
+                }
+                OrderStatus.DRIVER_ASSIGNED -> {
+                    TextButton(onClick = { onAdvanceMockDelivery(OrderStatus.PICKED_UP) }) {
+                        Text("Giả lập: Tài xế đã lấy món (Demo)", color = MiaoColors.SecondaryTeal, fontWeight = FontWeight.Bold)
+                    }
+                }
+                OrderStatus.PICKED_UP, OrderStatus.DELIVERING -> {
+                    TextButton(onClick = { onAdvanceMockDelivery(OrderStatus.COMPLETED) }) {
+                        Text("Giả lập: Đã giao thành công (Demo)", color = MiaoColors.SecondaryTeal, fontWeight = FontWeight.Bold)
+                    }
+                }
+                else -> Unit
             }
         }
     }
+}
+
+@Composable
+private fun RejectOrderDialog(
+    orderCode: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String, String) -> Unit,
+) {
+    val reasons = listOf(
+        "OUT_OF_STOCK" to "Hết nguyên liệu / Hết món",
+        "STORE_BUSY" to "Quán đang quá tải đơn",
+        "CLOSING_SOON" to "Quán sắp đóng cửa",
+    )
+    var selectedCode by remember { mutableStateOf(reasons.first().first) }
+    var customReason by remember { mutableStateOf(reasons.first().second) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.White,
+        title = {
+            Text(
+                text = "Từ chối Mã đơn #$orderCode",
+                fontWeight = FontWeight.Bold,
+                color = MiaoColors.OnSurface,
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                reasons.forEach { (code, label) ->
+                    FilterChip(
+                        selected = selectedCode == code,
+                        onClick = {
+                            selectedCode = code
+                            customReason = label
+                        },
+                        label = { Text(label) },
+                    )
+                }
+                OutlinedTextField(
+                    value = customReason,
+                    onValueChange = { customReason = it },
+                    label = { Text("Lý do gửi khách") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = customReason.isNotBlank(),
+                onClick = { onConfirm(selectedCode, customReason) },
+            ) { Text("Xác nhận từ chối", color = Color(0xFFD92D20), fontWeight = FontWeight.Bold) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Hủy") } },
+    )
 }
 
 @Composable

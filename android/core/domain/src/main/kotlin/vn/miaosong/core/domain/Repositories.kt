@@ -68,4 +68,5 @@ interface OrderRepository {
     suspend fun rejectOrder(orderId: String, reasonCode: String, reasonText: String): AppResult<Unit>
     suspend fun markReady(orderId: String): AppResult<Unit>
     suspend fun dispatchDriver(orderId: String): AppResult<Unit>
+    suspend fun mockDeliveryAdvance(orderId: String, targetStatus: OrderStatus): AppResult<Unit>
 }

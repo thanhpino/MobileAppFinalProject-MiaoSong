@@ -12,10 +12,13 @@ import kotlinx.coroutines.launch
 import vn.miaosong.core.common.AppResult
 import vn.miaosong.core.domain.AuthRepository
 import vn.miaosong.core.domain.MerchantCatalogRepository
+import vn.miaosong.core.domain.OrderRepository
 import vn.miaosong.core.domain.StoreRepository
 import vn.miaosong.core.model.ManualStoreStatus
 import vn.miaosong.core.model.MenuCategory
 import vn.miaosong.core.model.MenuItem
+import vn.miaosong.core.model.Order
+import vn.miaosong.core.model.OrderStatus
 import vn.miaosong.core.model.Store
 import vn.miaosong.core.model.UserProfile
 import vn.miaosong.core.model.Voucher
@@ -29,6 +32,7 @@ data class MerchantUiState(
     val categories: List<MenuCategory> = emptyList(),
     val menuItems: List<MenuItem> = emptyList(),
     val vouchers: List<Voucher> = emptyList(),
+    val orders: List<Order> = emptyList(),
     val isBusyAction: Boolean = false,
     val feedbackMessage: String? = null,
 )
@@ -40,6 +44,7 @@ class MerchantViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     storeRepository: StoreRepository,
     private val catalogRepository: MerchantCatalogRepository,
+    private val orderRepository: OrderRepository,
 ) : ViewModel() {
 
     private val busyState = MutableStateFlow(false)
@@ -63,6 +68,8 @@ class MerchantViewModel @Inject constructor(
             menuItems = items,
             vouchers = vouchers,
         )
+    }.combine(orderRepository.observeStoreOrders(storeId)) { state, orders ->
+        state.copy(orders = orders)
     }.combine(busyState) { state, busy ->
         state.copy(isBusyAction = busy)
     }.combine(feedbackState) { state, msg ->
@@ -164,6 +171,36 @@ class MerchantViewModel @Inject constructor(
                 is AppResult.Error -> feedbackState.value = res.message
             }
             busyState.value = false
+        }
+    }
+
+    fun confirmOrder(orderId: String) {
+        runAction("Đã nhận đơn — Chuyển bếp chuẩn bị món!") {
+            orderRepository.confirmOrder(orderId)
+        }
+    }
+
+    fun rejectOrder(orderId: String, reasonCode: String, reasonText: String) {
+        runAction("Đã từ chối đơn hàng") {
+            orderRepository.rejectOrder(orderId, reasonCode, reasonText)
+        }
+    }
+
+    fun markOrderReady(orderId: String) {
+        runAction("Đơn đã làm xong — Sẵn sàng gọi tài xế!") {
+            orderRepository.markReady(orderId)
+        }
+    }
+
+    fun dispatchDriver(orderId: String) {
+        runAction("Đã gửi yêu cầu điều phối tài xế Lalamove!") {
+            orderRepository.dispatchDriver(orderId)
+        }
+    }
+
+    fun advanceMockDelivery(orderId: String, targetStatus: OrderStatus) {
+        runAction("Đã cập nhật trạng thái giao hàng: ${targetStatus.name}") {
+            orderRepository.mockDeliveryAdvance(orderId, targetStatus)
         }
     }
 

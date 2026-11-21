@@ -17,10 +17,12 @@ import vn.miaosong.core.data.local.MiaoSongDatabase
 import vn.miaosong.core.data.repository.AuthRepositoryImpl
 import vn.miaosong.core.data.repository.CartRepositoryImpl
 import vn.miaosong.core.data.repository.MerchantCatalogRepositoryImpl
+import vn.miaosong.core.data.repository.OrderRepositoryImpl
 import vn.miaosong.core.data.repository.StoreRepositoryImpl
 import vn.miaosong.core.domain.AuthRepository
 import vn.miaosong.core.domain.CartRepository
 import vn.miaosong.core.domain.MerchantCatalogRepository
+import vn.miaosong.core.domain.OrderRepository
 import vn.miaosong.core.domain.StoreRepository
 import javax.inject.Singleton
 
@@ -73,4 +75,8 @@ abstract class DataBindModule {
     @Binds
     @Singleton
     abstract fun bindMerchantCatalogRepository(impl: MerchantCatalogRepositoryImpl): MerchantCatalogRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindOrderRepository(impl: OrderRepositoryImpl): OrderRepository
 }
