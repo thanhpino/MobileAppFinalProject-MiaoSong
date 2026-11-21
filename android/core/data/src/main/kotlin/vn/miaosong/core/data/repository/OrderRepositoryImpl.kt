@@ -49,6 +49,24 @@ class OrderRepositoryImpl @Inject constructor(
         awaitClose { reg.remove() }
     }
 
+    override fun observeCustomerReviews(uid: String): Flow<Map<String, Int>> = callbackFlow {
+        val reg = firestore.collection("reviews")
+            .whereEqualTo("customerId", uid)
+            .addSnapshotListener { snap, err ->
+                if (err != null) {
+                    trySend(emptyMap())
+                    return@addSnapshotListener
+                }
+                val map = snap?.documents?.associate { doc ->
+                    val orderId = doc.getString("orderId") ?: doc.id
+                    val stars = (doc.getLong("stars") ?: 5L).toInt().coerceIn(1, 5)
+                    orderId to stars
+                }.orEmpty()
+                trySend(map)
+            }
+        awaitClose { reg.remove() }
+    }
+
     override fun observeStoreOrders(storeId: String): Flow<List<Order>> = callbackFlow {
         val reg = firestore.collection("orders")
             .whereEqualTo("storeId", storeId)

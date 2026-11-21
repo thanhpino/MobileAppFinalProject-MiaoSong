@@ -84,6 +84,7 @@ import vn.miaosong.core.common.MoneyFormatter
 import vn.miaosong.core.designsystem.components.KitchenNoteBadge
 import vn.miaosong.core.designsystem.components.MiaoAnimatedCatLogo
 import vn.miaosong.core.designsystem.components.MiaoPrimaryButton
+import vn.miaosong.core.designsystem.components.MiaoSnackbarHost
 import vn.miaosong.core.designsystem.theme.MiaoColors
 import vn.miaosong.core.model.ManualStoreStatus
 import vn.miaosong.core.model.MenuCategory
@@ -155,7 +156,7 @@ fun MerchantDashboardScreen(
 
     Scaffold(
         containerColor = MiaoColors.SurfaceCanvas,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { MiaoSnackbarHost(snackbarHostState) },
         topBar = {
             MerchantTopHeader(
                 storeName = uiState.store?.name ?: "Bún Riêu Cô Ba",

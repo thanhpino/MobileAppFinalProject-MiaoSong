@@ -68,6 +68,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import vn.miaosong.core.common.AppResult
 import vn.miaosong.core.common.MoneyFormatter
+import vn.miaosong.core.designsystem.components.MiaoSnackbarHost
 import vn.miaosong.core.designsystem.theme.MiaoColors
 import vn.miaosong.core.domain.AuthRepository
 import vn.miaosong.core.domain.CartLineKey
@@ -106,18 +107,25 @@ class CustomerOrdersViewModel @Inject constructor(
     private val reviewedMap = MutableStateFlow<Map<String, Int>>(emptyMap())
     private val feedbackState = MutableStateFlow<String?>(null)
 
-    private val ordersFlow = authRepository.observeCurrentUser().flatMapLatest { user ->
+    private val currentUserFlow = authRepository.observeCurrentUser()
+
+    private val ordersFlow = currentUserFlow.flatMapLatest { user ->
         if (user == null) flowOf(emptyList()) else orderRepository.observeCustomerOrders(user.uid)
+    }
+
+    private val remoteReviewsFlow = currentUserFlow.flatMapLatest { user ->
+        if (user == null) flowOf(emptyMap()) else orderRepository.observeCustomerReviews(user.uid)
     }
 
     val uiState: StateFlow<CustomerOrdersUiState> = combine(
         ordersFlow,
+        remoteReviewsFlow,
         reviewedMap,
         feedbackState,
-    ) { orders, reviewed, msg ->
+    ) { orders, remoteReviewed, localReviewed, msg ->
         CustomerOrdersUiState(
             orders = orders,
-            reviewedStarsByOrderId = reviewed,
+            reviewedStarsByOrderId = remoteReviewed + localReviewed,
             feedbackMessage = msg,
         )
     }.stateIn(
@@ -384,7 +392,7 @@ fun CustomerOrdersTab(
             }
         }
 
-        SnackbarHost(
+        MiaoSnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter),
         )

@@ -130,7 +130,7 @@ private val DEMO_STORES = listOf(
 fun CustomerHomeScreen(
     onSwitchToMerchantPreview: () -> Unit = {},
     onTriggerLoadingPreview: () -> Unit = {},
-    onOpenOrderTracking: () -> Unit = {},
+    onOpenOrderTracking: (String?) -> Unit = {},
     onOpenProfile: () -> Unit = {},
     onOpenCart: () -> Unit = {},
     onSelectStore: (String) -> Unit = {},
@@ -172,7 +172,7 @@ fun CustomerHomeScreen(
                 if (selectedTab != 2) {
                     ActiveOrderFloatingPill(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        onClick = onOpenOrderTracking,
+                        onClick = { onOpenOrderTracking(null) },
                     )
                 }
                 NavigationBar(
@@ -218,7 +218,7 @@ fun CustomerHomeScreen(
     ) { innerPadding ->
         if (selectedTab == 2) {
             CustomerOrdersTab(
-                onOpenOrderDetail = { onOpenOrderTracking() },
+                onOpenOrderDetail = { order -> onOpenOrderTracking(order.id) },
                 modifier = Modifier.padding(innerPadding),
             )
         } else {
