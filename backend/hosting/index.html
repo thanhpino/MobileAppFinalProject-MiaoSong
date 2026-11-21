@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>MiaoSong (喵送) — Meo một tiếng, món tới liền</title>
+  <title>MiaoSong (喵送) — Gọi một tiếng, món tới liền</title>
   <style>
     body {
       margin: 0;
@@ -18,6 +19,7 @@
       padding: 24px;
       text-align: center;
     }
+
     .card {
       background: #FFFFFF;
       border-radius: 24px;
@@ -26,8 +28,19 @@
       box-shadow: 0 12px 32px rgba(39, 24, 15, 0.08);
       border: 1px solid rgba(255, 106, 26, 0.15);
     }
-    h1 { color: #FF6A1A; margin: 12px 0 6px; font-size: 28px; }
-    p { color: #5A4137; line-height: 1.5; font-size: 15px; }
+
+    h1 {
+      color: #FF6A1A;
+      margin: 12px 0 6px;
+      font-size: 28px;
+    }
+
+    p {
+      color: #5A4137;
+      line-height: 1.5;
+      font-size: 15px;
+    }
+
     .btn {
       display: inline-block;
       margin-top: 18px;
@@ -50,15 +63,42 @@
       font-weight: 600;
       line-height: 1.45;
     }
-    .links { margin-top: 20px; font-size: 13px; }
-    .links a { color: #006B5F; text-decoration: none; font-weight: 600; }
+
+    .hint {
+      display: none;
+      margin-top: 14px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: #FFF1EA;
+      color: #A43D00;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.45;
+    }
+
+    .links {
+      margin-top: 20px;
+      font-size: 13px;
+    }
+
+    .links a {
+      color: #006B5F;
+      text-decoration: none;
+      font-weight: 600;
+    }
   </style>
 </head>
+
 <body>
   <div class="card">
     <h1>MiaoSong 喵送</h1>
-    <p><strong>Meo một tiếng, món tới liền.</strong><br/>Nền tảng đặt món trực tiếp từ quán quen (D2C F&amp;B) &amp; điều phối giao hàng Lalamove tự động.</p>
+    <p><strong>Gọi một tiếng, món tới liền.</strong><br />Nền tảng đặt món trực tiếp từ quán quen (D2C F&amp;B) &amp;
+      điều phối giao hàng Lalamove tự động.</p>
     <a class="btn" id="openAppBtn" href="miaosong://open">Mở ứng dụng MiaoSong</a>
+    <div class="hint" id="desktopHint">
+      Link này mở trực tiếp ứng dụng Android MiaoSong. Hãy truy cập <strong>miaosong-pro.web.app</strong> trên điện
+      thoại Android đã cài app để mở ngay!
+    </div>
     <div class="hint" id="desktopHint">
       Link này mở trực tiếp ứng dụng Android MiaoSong. Hãy truy cập <strong>miaosong-pro.web.app</strong> trên điện thoại Android đã cài app để mở ngay!
     </div>
@@ -83,4 +123,5 @@
     });
   </script>
 </body>
+
 </html>
