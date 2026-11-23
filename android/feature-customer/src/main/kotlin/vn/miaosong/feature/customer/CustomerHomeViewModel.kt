@@ -26,6 +26,7 @@ import vn.miaosong.core.model.NotificationItem
 import vn.miaosong.core.model.NotificationType
 import vn.miaosong.core.model.Order
 import vn.miaosong.core.model.OrderStatus
+import vn.miaosong.core.model.RefundStatus
 import vn.miaosong.core.model.Store
 import java.text.Normalizer
 import java.util.regex.Pattern
@@ -152,10 +153,23 @@ class CustomerHomeViewModel @Inject constructor(
                 OrderStatus.PICKED_UP -> "Món nóng hổi đang trên đường tới bạn 🛵"
                 OrderStatus.DELIVERING -> "Chú ý điện thoại nhé, tài xế sắp tới rồi!"
                 OrderStatus.COMPLETED -> "Chúc bạn ngon miệng! Đánh giá cho quán nhé ⭐"
-                OrderStatus.REJECTED -> "Quán xin lỗi, đơn bị từ chối vì ${order.rejectReason ?: "hết nguyên liệu"}."
+                OrderStatus.REJECTED -> {
+                    val reason = order.rejectReason?.takeIf { it.isNotBlank() } ?: "hết nguyên liệu"
+                    val refundNote = when (order.refundStatus) {
+                        RefundStatus.REFUNDED -> " Tiền thanh toán ZaloPay đã được hoàn về tài khoản của bạn."
+                        RefundStatus.PENDING -> " Hệ thống đang xử lý hoàn tiền ZaloPay cho bạn."
+                        RefundStatus.REFUND_FAILED -> " Hoàn tiền ZaloPay gặp sự cố, vui lòng liên hệ hỗ trợ."
+                        RefundStatus.NONE -> ""
+                    }
+                    "Quán xin lỗi, đơn bị từ chối vì $reason.$refundNote"
+                }
                 else -> "Đơn hàng của bạn đang được xử lý."
             }
-            val notifId = "order_${order.id}_${order.status.name}"
+            val notifId = if (order.status == OrderStatus.REJECTED) {
+                "order_${order.id}_${order.status.name}_${order.refundStatus.name}"
+            } else {
+                "order_${order.id}_${order.status.name}"
+            }
             NotificationItem(
                 id = notifId,
                 title = title,

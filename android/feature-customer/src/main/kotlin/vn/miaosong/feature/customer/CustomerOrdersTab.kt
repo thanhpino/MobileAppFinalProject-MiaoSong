@@ -94,6 +94,7 @@ import vn.miaosong.core.model.OrderStatus
 import vn.miaosong.core.model.PaymentMethod
 import vn.miaosong.core.model.PaymentStatus
 import vn.miaosong.core.model.PriceBreakdown
+import vn.miaosong.core.model.RefundStatus
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -393,6 +394,7 @@ fun CustomerOrdersTab(
                     order = order,
                     votedStars = uiState.reviewedStarsByOrderId[order.id],
                     onSelectStar = { star -> reviewingTarget = order to star },
+                    onViewDetail = { onOpenOrderDetail(order) },
                     onReorderClick = {
                         viewModel.reorder(order)
                         reorderingOrder = order
@@ -555,6 +557,7 @@ private fun PastCustomerOrderCard(
     order: Order,
     votedStars: Int?,
     onSelectStar: (Int) -> Unit,
+    onViewDetail: () -> Unit,
     onReorderClick: () -> Unit,
 ) {
     val isCompleted = order.status == OrderStatus.COMPLETED
@@ -565,7 +568,9 @@ private fun PastCustomerOrderCard(
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onViewDetail() },
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.14f)),
@@ -630,6 +635,65 @@ private fun PastCustomerOrderCard(
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
             )
+
+            if (!isCompleted) {
+                val reasonText = order.rejectReason?.takeIf { it.isNotBlank() }
+                val hasRefundInfo = order.refundStatus != RefundStatus.NONE
+                if (reasonText != null || hasRefundInfo) {
+                    Surface(
+                        color = Color(0xFFFFF1F0),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFFD92D20).copy(alpha = 0.2f)),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            if (reasonText != null) {
+                                Text(
+                                    text = "Lý do từ quán: $reasonText",
+                                    color = Color(0xFF912018),
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
+                            if (hasRefundInfo) {
+                                val (refundText, refundBg, refundFg) = when (order.refundStatus) {
+                                    RefundStatus.REFUNDED -> Triple(
+                                        "✓ Đã hoàn tiền ${MoneyFormatter.formatVnd(order.payment.amountVnd)} về ZaloPay",
+                                        Color(0xFFECFDF3),
+                                        Color(0xFF027A48),
+                                    )
+                                    RefundStatus.PENDING -> Triple(
+                                        "⏳ Đang xử lý hoàn tiền ZaloPay...",
+                                        Color(0xFFFFFAEB),
+                                        Color(0xFFB54708),
+                                    )
+                                    RefundStatus.REFUND_FAILED -> Triple(
+                                        "⚠ Hoàn tiền ZaloPay thất bại — vui lòng liên hệ hỗ trợ",
+                                        Color(0xFFFFE4E6),
+                                        Color(0xFFB42318),
+                                    )
+                                    RefundStatus.NONE -> Triple("", Color.Transparent, Color.Transparent)
+                                }
+                                Surface(
+                                    color = refundBg,
+                                    shape = RoundedCornerShape(8.dp),
+                                ) {
+                                    Text(
+                                        text = refundText,
+                                        color = refundFg,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             if (isCompleted) {
                 Row(
