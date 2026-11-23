@@ -5,18 +5,38 @@ import vn.miaosong.core.common.AppResult
 import vn.miaosong.core.model.CartLine
 import vn.miaosong.core.model.DeliveryAddress
 import vn.miaosong.core.model.DeliveryQuote
+import vn.miaosong.core.model.ManualStoreStatus
 import vn.miaosong.core.model.MenuCategory
 import vn.miaosong.core.model.MenuItem
 import vn.miaosong.core.model.Order
+import vn.miaosong.core.model.OrderStatus
 import vn.miaosong.core.model.PaymentMethod
+import vn.miaosong.core.model.Review
+import vn.miaosong.core.model.SpecialDay
 import vn.miaosong.core.model.Store
+import vn.miaosong.core.model.TimeSlot
 import vn.miaosong.core.model.UserProfile
 import vn.miaosong.core.model.Voucher
 
 interface AuthRepository {
     fun observeCurrentUser(): Flow<UserProfile?>
     suspend fun signInWithEmail(email: String, password: String): AppResult<UserProfile>
+    suspend fun signUpWithEmail(email: String, password: String, name: String): AppResult<UserProfile>
+    suspend fun signInWithGoogle(idToken: String): AppResult<UserProfile>
+    suspend fun signInWithFacebook(token: String): AppResult<UserProfile>
+    suspend fun sendPasswordResetEmail(email: String): AppResult<Unit>
+    suspend fun changePassword(newPassword: String): AppResult<Unit>
+    suspend fun updateProfile(name: String, phone: String): AppResult<UserProfile>
+    suspend fun uploadAvatar(imageBytes: ByteArray): AppResult<String>
     suspend fun signOut()
+}
+
+interface AddressRepository {
+    fun observeAddresses(uid: String): Flow<List<DeliveryAddress>>
+    suspend fun addAddress(uid: String, address: DeliveryAddress): AppResult<String>
+    suspend fun updateAddress(uid: String, address: DeliveryAddress): AppResult<Unit>
+    suspend fun deleteAddress(uid: String, addressId: String): AppResult<Unit>
+    suspend fun setDefaultAddress(uid: String, addressId: String): AppResult<Unit>
 }
 
 interface StoreRepository {
@@ -25,6 +45,27 @@ interface StoreRepository {
     fun observeCategories(storeId: String): Flow<List<MenuCategory>>
     fun observeMenuItems(storeId: String): Flow<List<MenuItem>>
     fun observeVouchers(storeId: String): Flow<List<Voucher>>
+    fun observeStoreReviews(storeId: String): Flow<List<Review>>
+}
+
+interface MerchantCatalogRepository {
+    suspend fun upsertCategory(storeId: String, category: MenuCategory): AppResult<Unit>
+    suspend fun deleteCategory(storeId: String, categoryId: String): AppResult<Unit>
+    suspend fun upsertMenuItem(storeId: String, item: MenuItem): AppResult<Unit>
+    suspend fun toggleMenuItemAvailability(storeId: String, itemId: String, isAvailable: Boolean): AppResult<Unit>
+    suspend fun deleteMenuItem(storeId: String, itemId: String): AppResult<Unit>
+    suspend fun upsertVoucher(storeId: String, voucher: Voucher): AppResult<Unit>
+    suspend fun toggleVoucherActive(storeId: String, voucherId: String, isActive: Boolean): AppResult<Unit>
+    suspend fun deleteVoucher(storeId: String, voucherId: String): AppResult<Unit>
+    suspend fun updateStoreStatus(storeId: String, status: ManualStoreStatus, busyUntilEpochMs: Long?): AppResult<Unit>
+    suspend fun updateStoreInfo(storeId: String, name: String, address: String, phone: String): AppResult<Unit>
+    suspend fun updateStoreSchedule(
+        storeId: String,
+        weeklySchedule: Map<String, List<TimeSlot>>,
+        specialDays: List<SpecialDay>,
+    ): AppResult<Unit>
+    suspend fun uploadStoreAvatar(storeId: String, imageBytes: ByteArray): AppResult<String>
+    suspend fun uploadMenuItemImage(storeId: String, itemId: String, imageBytes: ByteArray): AppResult<String>
 }
 
 interface CartRepository {
@@ -37,6 +78,7 @@ interface CartRepository {
 
 interface OrderRepository {
     fun observeCustomerOrders(uid: String): Flow<List<Order>>
+    fun observeCustomerReviews(uid: String): Flow<Map<String, Int>>
     fun observeStoreOrders(storeId: String): Flow<List<Order>>
     fun observeOrder(orderId: String): Flow<Order?>
     suspend fun getDeliveryQuote(storeId: String, dropoff: DeliveryAddress): AppResult<DeliveryQuote>
@@ -51,6 +93,16 @@ interface OrderRepository {
     ): AppResult<Order>
     suspend fun confirmOrder(orderId: String): AppResult<Unit>
     suspend fun rejectOrder(orderId: String, reasonCode: String, reasonText: String): AppResult<Unit>
+    suspend fun cancelOrder(orderId: String, reason: String = "Khách hàng hủy thanh toán"): AppResult<Unit>
+    suspend fun confirmPayment(orderId: String, appTransId: String): AppResult<Boolean>
     suspend fun markReady(orderId: String): AppResult<Unit>
     suspend fun dispatchDriver(orderId: String): AppResult<Unit>
+    suspend fun mockDeliveryAdvance(orderId: String, targetStatus: OrderStatus): AppResult<Unit>
+    suspend fun submitReview(
+        orderId: String,
+        stars: Int,
+        tags: List<String>,
+        comment: String,
+        imageBytes: ByteArray? = null,
+    ): AppResult<Unit>
 }

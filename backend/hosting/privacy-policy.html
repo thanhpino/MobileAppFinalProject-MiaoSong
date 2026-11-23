@@ -1,46 +1,127 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <title>Chính sách bảo mật — MiaoSong (喵送)</title>
   <style>
     body {
-      font-family: system-ui, -apple-system, sans-serif;
+      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
       background: #FFF8F5;
       color: #27180F;
-      max-width: 760px;
+      max-width: 780px;
       margin: 0 auto;
       padding: 32px 20px;
-      line-height: 1.65;
+      line-height: 1.7;
     }
-    h1 { color: #FF6A1A; }
-    h2 { color: #A43D00; margin-top: 24px; }
+
+    h1 {
+      color: #FF6A1A;
+      margin-top: 0;
+      font-size: 26px;
+    }
+
+    h2 {
+      color: #A43D00;
+      margin-top: 24px;
+      font-size: 18px;
+    }
+
+    code {
+      background: #FFF1EA;
+      color: #A43D00;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 0.92em;
+    }
+
     .card {
       background: #FFFFFF;
-      border-radius: 16px;
+      border-radius: 20px;
       padding: 28px;
-      box-shadow: 0 4px 16px rgba(39, 24, 15, 0.05);
+      box-shadow: 0 6px 24px rgba(39, 24, 15, 0.06);
+      border: 1px solid rgba(255, 106, 26, 0.12);
+    }
+
+    .meta {
+      color: #5A4137;
+      font-size: 14px;
+      margin-bottom: 18px;
+    }
+
+    ul {
+      padding-left: 20px;
+    }
+
+    li {
+      margin-bottom: 8px;
+    }
+
+    .back {
+      display: inline-block;
+      margin-top: 20px;
+      color: #006B5F;
+      text-decoration: none;
+      font-weight: 700;
     }
   </style>
 </head>
+
 <body>
   <div class="card">
     <h1>Chính sách Bảo mật (Privacy Policy) — MiaoSong</h1>
-    <p><strong>Cập nhật lần cuối:</strong> 20/11/2026 · <strong>Ứng dụng:</strong> MiaoSong (`vn.miaosong.app`)</p>
+    <p class="meta">
+      <strong>Cập nhật lần cuối:</strong> 21/11/2026 &middot;
+      <strong>Ứng dụng:</strong> MiaoSong (<code>vn.miaosong.app</code>) &middot;
+      <strong>Đơn vị phát triển:</strong> Nhóm Tsinghua (TDTU)
+    </p>
 
-    <h2>1. Dữ liệu thu thập</h2>
+    <h2>1. Dữ liệu chúng tôi thu thập</h2>
     <ul>
-      <li><strong>Thông tin tài khoản:</strong> Họ tên, địa chỉ email, số điện thoại khi đăng nhập qua Google hoặc Email để xác thực đơn hàng và liên hệ giao nhận.</li>
-      <li><strong>Địa chỉ &amp; Tọa độ giao hàng:</strong> Địa chỉ nhận món và tọa độ (`lat`, `lng`) do người dùng chọn để tính khoảng cách, báo giá cước vận chuyển và điều phối tài xế Lalamove.</li>
-      <li><strong>Token thông báo (FCM Token):</strong> Dùng để gửi thông báo đẩy (Push Notification) khi trạng thái đơn hàng hoặc lộ trình tài xế thay đổi.</li>
+      <li><strong>Thông tin tài khoản:</strong> Họ tên, địa chỉ email, số điện thoại khi đăng ký/đăng nhập bằng Email để
+        xác thực tài khoản, hiển thị hồ sơ và liên hệ giao nhận đơn hàng.</li>
+      <li><strong>Địa chỉ &amp; Tọa độ giao hàng:</strong> Địa chỉ nhận món và tọa độ (<code>lat</code>,
+        <code>lng</code>) do người dùng chủ động chọn trên bản đồ OpenStreetMap để tính khoảng cách, báo giá cước vận
+        chuyển và điều phối tài xế Lalamove.</li>
+      <li><strong>Hình ảnh do người dùng tự tải lên:</strong> Ảnh đại diện tài khoản, ảnh đại diện quán và ảnh món ăn
+        được người dùng chủ động chọn qua trình chọn ảnh hệ thống (Android Photo Picker) và lưu trữ trên Firebase Cloud
+        Storage. Ứng dụng không tự ý quét toàn bộ thư viện ảnh.</li>
+      <li><strong>Lịch sử đơn hàng &amp; Đánh giá:</strong> Thông tin đơn đặt món, ghi chú chế biến/dị ứng, đánh giá 1–5
+        sao và nhận xét để phục vụ theo dõi đơn, tái mua hàng và nâng cao chất lượng quán.</li>
+      <li><strong>Token thông báo đẩy (FCM Token):</strong> Mã định danh thiết bị dùng để gửi thông báo realtime (đơn
+        mới tới quán, quán đang chuẩn bị món, tài xế đang giao hàng).</li>
     </ul>
 
-    <h2>2. Mục đích sử dụng &amp; Chia sẻ dữ liệu</h2>
-    <p>Dữ liệu chỉ được sử dụng để xử lý đơn đặt món, thanh toán qua cổng ZaloPay và gửi thông tin điểm giao nhận (tên, số điện thoại, địa chỉ, số tiền thu hộ) sang đối tác vận chuyển Lalamove khi quán bấm "Gọi Shipper". MiaoSong không bán hoặc chia sẻ dữ liệu cá nhân cho bên thứ ba vì mục đích quảng cáo.</p>
+    <h2>2. Mục đích sử dụng &amp; Chia sẻ với bên thứ ba</h2>
+    <p>Dữ liệu chỉ được sử dụng cho các nghiệp vụ cốt lõi của nền tảng đặt món D2C:</p>
+    <ul>
+      <li><strong>Đối tác giao hàng (Lalamove):</strong> Gửi địa chỉ lấy/giao hàng, tên, số điện thoại người nhận và số
+        tiền thu hộ (nếu COD) khi quán bấm gọi tài xế.</li>
+      <li><strong>Cổng thanh toán (ZaloPay):</strong> Xử lý giao dịch thanh toán trực tuyến và hoàn tiền tự động khi đơn
+        bị quán từ chối.</li>
+      <li><strong>Hạ tầng lưu trữ (Google Firebase):</strong> Xác thực tài khoản, lưu cơ sở dữ liệu Firestore, lưu ảnh
+        Storage và gửi thông báo FCM.</li>
+    </ul>
+    <p>MiaoSong <strong>không bán</strong> và không chia sẻ dữ liệu cá nhân của người dùng cho bất kỳ bên thứ ba nào vì
+      mục đích quảng cáo.</p>
 
-    <h2>3. Bảo mật &amp; Quyền xóa dữ liệu</h2>
-    <p>Mọi kết nối đều được mã hóa qua HTTPS/TLS và phân quyền bằng Firebase Security Rules. Người dùng có thể yêu cầu cập nhật hoặc xóa tài khoản và dữ liệu liên quan bằng cách liên hệ nhóm phát triển qua email hỗ trợ trên Google Play Store.</p>
+    <h2>3. Bảo mật &amp; Thời gian lưu trữ</h2>
+    <p>Mọi kết nối giữa ứng dụng và máy chủ đều được mã hóa bằng giao thức HTTPS/TLS. Quyền truy cập dữ liệu được kiểm
+      soát chặt chẽ bằng Firebase Authentication Custom Claims và Security Rules (khách hàng chỉ xem đơn của mình; chủ
+      quán chỉ quản lý dữ liệu quán của mình).</p>
+
+    <h2>4. Quyền của người dùng &amp; Yêu cầu xóa dữ liệu</h2>
+    <p>Người dùng có thể tự cập nhật thông tin cá nhân, đổi mật khẩu trực tiếp trong ứng dụng. Để yêu cầu xóa tài khoản
+      và toàn bộ dữ liệu liên quan, vui lòng gửi email tới bộ phận hỗ trợ:</p>
+    <ul>
+      <li><strong>Email hỗ trợ:</strong> <a href="mailto:tt3145539@gmail.com">tt3145539@gmail.com</a></li>
+      <li><strong>Thời gian xử lý:</strong> Trong vòng 7 ngày làm việc kể từ khi xác minh chủ sở hữu tài khoản.</li>
+    </ul>
+
+    <a class="back" href="/">&larr; Quay lại trang chủ MiaoSong</a>
   </div>
 </body>
+
 </html>

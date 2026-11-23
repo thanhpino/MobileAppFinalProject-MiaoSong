@@ -20,6 +20,15 @@ service firebase.storage {
         && request.resource.contentType.matches('image/.*');
     }
 
+    // Ảnh đại diện người dùng: đọc công khai, chỉ chính chủ được upload (<= 2MB, định dạng ảnh)
+    match /users/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSignedIn()
+        && request.auth.uid == userId
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
     // Chặn mặc định các đường dẫn khác
     match /{allPaths=**} {
       allow read, write: if false;

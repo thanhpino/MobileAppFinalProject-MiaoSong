@@ -4,6 +4,10 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
 import androidx.core.app.NotificationCompat
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
@@ -11,7 +15,31 @@ class MiaoMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        // Token sẽ được đồng bộ lên Firestore users/{uid}.fcmTokens sau khi đăng nhập
+        syncTokenToFirestore(token)
+    }
+
+    companion object {
+        /** Đồng bộ FCM token hiện tại lên Firestore `users/{uid}.fcmTokens` để Cloud Function `onOrderUpdated` bắn push thật */
+        fun syncCurrentToken() {
+            val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+            FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
+                if (token.isNotBlank()) {
+                    FirebaseFirestore.getInstance()
+                        .collection("users")
+                        .document(uid)
+                        .update("fcmTokens", FieldValue.arrayUnion(token))
+                }
+            }
+        }
+
+        fun syncTokenToFirestore(token: String) {
+            val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+            if (token.isBlank()) return
+            FirebaseFirestore.getInstance()
+                .collection("users")
+                .document(uid)
+                .update("fcmTokens", FieldValue.arrayUnion(token))
+        }
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
@@ -29,6 +57,9 @@ class MiaoMessagingService : FirebaseMessagingService() {
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("orderId", message.data["orderId"])
+            if (type == "NEW_ORDER") {
+                putExtra("open_merchant_kds", true)
+            }
         }
         val pending = PendingIntent.getActivity(
             this,

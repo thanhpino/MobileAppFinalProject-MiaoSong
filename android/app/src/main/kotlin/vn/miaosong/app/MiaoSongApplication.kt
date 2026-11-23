@@ -40,6 +40,14 @@ class MiaoSongApplication : Application() {
                 description = "Cảnh báo quán khi đơn hàng giao lâu hơn dự kiến"
                 enableVibration(true)
             },
+            NotificationChannel(
+                CHANNEL_MERCHANT_SERVICE,
+                "Trực đơn hàng (Chế độ Quán)",
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply {
+                description = "Giữ kết nối nền để báo chuông ngay khi có đơn hàng mới kể cả khi tắt màn hình"
+                setShowBadge(false)
+            },
         )
         manager.createNotificationChannels(channels)
     }
@@ -48,5 +56,6 @@ class MiaoSongApplication : Application() {
         const val CHANNEL_NEW_ORDER = "miaosong_new_order"
         const val CHANNEL_ORDER_STATUS = "miaosong_order_status"
         const val CHANNEL_LATE_ALERT = "miaosong_late_alert"
+        const val CHANNEL_MERCHANT_SERVICE = "miaosong_merchant_service"
     }
 }

@@ -44,6 +44,7 @@ data class UserProfile(
     val phone: String = "",
     val role: UserRole = UserRole.CUSTOMER,
     val storeId: String? = null,
+    val avatarUrl: String = "",
 )
 
 @Serializable
@@ -51,8 +52,8 @@ data class DeliveryAddress(
     val id: String = "",
     val label: String = "",
     val fullText: String,
-    val lat: Double,
-    val lng: Double,
+    val lat: Double = 0.0,
+    val lng: Double = 0.0,
     val recipientName: String = "",
     val recipientPhone: String = "",
     val note: String = "",
@@ -86,6 +87,7 @@ data class Store(
     val name: String,
     val slug: String,
     val address: String,
+    val avatarUrl: String = "",
     val lat: Double,
     val lng: Double,
     val phone: String,
@@ -259,5 +261,26 @@ data class Review(
     val stars: Int,
     val tags: List<String> = emptyList(),
     val comment: String = "",
+    val imageUrl: String = "",
     val createdAtEpochMs: Long = 0L,
 )
+
+@Serializable
+enum class NotificationType {
+    ORDER_STATUS,
+    PROMOTION,
+    SYSTEM,
+}
+
+@Serializable
+data class NotificationItem(
+    val id: String,
+    val title: String,
+    val body: String,
+    val timestampEpochMs: Long = 0L,
+    val type: NotificationType = NotificationType.ORDER_STATUS,
+    val orderId: String? = null,
+    val deepLink: String? = null,
+    val isRead: Boolean = false,
+)
+

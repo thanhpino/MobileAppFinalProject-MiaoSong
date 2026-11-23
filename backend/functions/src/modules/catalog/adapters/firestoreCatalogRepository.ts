@@ -12,6 +12,7 @@ export class FirestoreCatalogRepository implements CatalogRepository {
       name: String(d.name ?? ""),
       slug: String(d.slug ?? ""),
       address: String(d.address ?? ""),
+      avatarUrl: String(d.avatarUrl ?? ""),
       lat: Number(d.lat ?? 0),
       lng: Number(d.lng ?? 0),
       phone: String(d.phone ?? ""),
