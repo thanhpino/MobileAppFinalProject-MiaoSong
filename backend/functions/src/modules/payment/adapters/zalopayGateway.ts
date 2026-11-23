@@ -11,13 +11,13 @@ export class ZaloPayGateway implements PaymentGateway {
   readonly method = "ZALOPAY" as const;
 
   private get appId(): number {
-    return Number(process.env.ZALOPAY_APP_ID ?? 2553);
+    return Number(process.env.ZALOPAY_APP_ID ?? 2554);
   }
   private get key1(): string {
-    return process.env.ZALOPAY_KEY1 ?? "PcY4iZIKFCIdgZvA6ueMcMHHUbRLYjPL";
+    return process.env.ZALOPAY_KEY1 ?? "sdngKKJmqEMzvh5QQcdD2A9XBSKUNaYn";
   }
   private get key2(): string {
-    return process.env.ZALOPAY_KEY2 ?? "kLtgPl8HHhfvMuDHPwKfgfsY4Ydm9eIz";
+    return process.env.ZALOPAY_KEY2 ?? "trMrHtvjo6myautxDUiAcYsVtaeQ8nhf";
   }
   private get createUrl(): string {
     return process.env.ZALOPAY_CREATE_URL ?? "https://sb-openapi.zalopay.vn/v2/create";
@@ -29,7 +29,10 @@ export class ZaloPayGateway implements PaymentGateway {
     return process.env.ZALOPAY_REFUND_URL ?? "https://sb-openapi.zalopay.vn/v2/refund";
   }
   private get callbackUrl(): string {
-    return process.env.ZALOPAY_CALLBACK_URL ?? "";
+    return (
+      process.env.ZALOPAY_CALLBACK_URL ??
+      "https://asia-southeast1-miaosong-pro.cloudfunctions.net/zalopayCallback"
+    );
   }
   private get redirectUrl(): string {
     return process.env.ZALOPAY_REDIRECT_URL ?? "https://miaosong-pro.web.app/pay/return";
@@ -64,34 +67,38 @@ export class ZaloPayGateway implements PaymentGateway {
     const rawMac = `${this.appId}|${appTransId}|${input.userId}|${input.amountVnd}|${appTime}|${embedData}|${item}`;
     const mac = this.hmac(this.key1, rawMac);
 
-    const body = new URLSearchParams({
-      app_id: String(this.appId),
+    const payload: Record<string, unknown> = {
+      app_id: this.appId,
       app_user: input.userId,
-      app_time: String(appTime),
-      amount: String(input.amountVnd),
+      app_time: appTime,
+      amount: input.amountVnd,
       app_trans_id: appTransId,
       embed_data: embedData,
       item,
       description: input.description,
       bank_code: "",
-      callback_url: this.callbackUrl,
       mac,
-    });
+    };
+    if (this.callbackUrl) {
+      payload.callback_url = this.callbackUrl;
+    }
 
     const res = await fetch(this.createUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
       signal: AbortSignal.timeout(8000),
     });
     const json = (await res.json()) as {
       return_code: number;
       return_message: string;
+      sub_return_message?: string;
       order_url?: string;
     };
 
     if (json.return_code !== 1 || !json.order_url) {
-      throw new AppError("REFUND_FAILED", `ZaloPay tạo giao dịch thất bại: ${json.return_message}`, {
+      const detail = json.sub_return_message ? ` (${json.sub_return_message})` : "";
+      throw new AppError("REFUND_FAILED", `ZaloPay tạo giao dịch thất bại: ${json.return_message}${detail}`, {
         gateway: "ZALOPAY",
         gatewayCode: json.return_code,
       });
