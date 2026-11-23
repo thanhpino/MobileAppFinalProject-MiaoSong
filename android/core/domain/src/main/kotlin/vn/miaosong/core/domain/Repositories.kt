@@ -93,6 +93,8 @@ interface OrderRepository {
     ): AppResult<Order>
     suspend fun confirmOrder(orderId: String): AppResult<Unit>
     suspend fun rejectOrder(orderId: String, reasonCode: String, reasonText: String): AppResult<Unit>
+    suspend fun cancelOrder(orderId: String, reason: String = "Khách hàng hủy thanh toán"): AppResult<Unit>
+    suspend fun confirmPayment(orderId: String, appTransId: String): AppResult<Boolean>
     suspend fun markReady(orderId: String): AppResult<Unit>
     suspend fun dispatchDriver(orderId: String): AppResult<Unit>
     suspend fun mockDeliveryAdvance(orderId: String, targetStatus: OrderStatus): AppResult<Unit>

@@ -15,6 +15,7 @@ import android.graphics.Shader
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.view.MotionEvent
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -221,6 +222,41 @@ class OrderTrackingViewModel @Inject constructor(
         feedbackState.value = null
     }
 
+    fun reconcilePendingPayment(silent: Boolean = true) {
+        val currentOrder = uiState.value.order
+        val appTransId = currentOrder.payment.appTransId
+        if (currentOrder.status != OrderStatus.PENDING_PAYMENT || appTransId.isNullOrBlank()) return
+        viewModelScope.launch {
+            when (val res = orderRepository.confirmPayment(currentOrder.id, appTransId)) {
+                is AppResult.Success -> {
+                    if (res.data) {
+                        feedbackState.value = "Thanh toán ZaloPay thành công! Đơn đã được gửi đến quán."
+                    } else if (!silent) {
+                        feedbackState.value = "Giao dịch ZaloPay chưa hoàn tất. Bạn có thể thanh toán lại hoặc hủy đơn."
+                    }
+                }
+                is AppResult.Error -> {
+                    if (!silent) feedbackState.value = res.message
+                }
+            }
+        }
+    }
+
+    fun cancelPendingOrder() {
+        val currentOrder = uiState.value.order
+        if (currentOrder.id.startsWith("demo_")) return
+        viewModelScope.launch {
+            when (val res = orderRepository.cancelOrder(currentOrder.id, "Khách hàng hủy giao dịch ZaloPay")) {
+                is AppResult.Success -> {
+                    feedbackState.value = "Đã hủy đơn chưa thanh toán (lượt voucher đã được hoàn lại)."
+                }
+                is AppResult.Error -> {
+                    feedbackState.value = res.message
+                }
+            }
+        }
+    }
+
     fun submitReview(stars: Int, tags: List<String>, comment: String, imageBytes: ByteArray? = null) {
         val currentOrder = uiState.value.order
         viewModelScope.launch {
@@ -316,6 +352,18 @@ fun OrderTrackingScreen(
 
     val order = uiState.order
     val store = uiState.store
+
+    // Tự động đối soát thanh toán ZaloPay mỗi khi khách quay về app từ Chrome Custom Tab
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, order.id, order.status) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && order.status == OrderStatus.PENDING_PAYMENT) {
+                viewModel.reconcilePendingPayment(silent = true)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // Tự động gợi ý Đánh giá 1–5 sao ngay khi đơn chuyển sang Giao thành công (Mục 5 đề bài)
     LaunchedEffect(order.status, uiState.submittedStars) {
@@ -631,6 +679,7 @@ fun OrderTrackingScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = when (order.status) {
+                                    OrderStatus.PENDING_PAYMENT -> "Chờ thanh toán ZaloPay — Đơn chưa gửi đến quán"
                                     OrderStatus.COMPLETED -> "Đơn hàng đã giao thành công!"
                                     OrderStatus.REJECTED, OrderStatus.CANCELLED -> "Đơn hàng đã bị hủy / từ chối"
                                     else -> "Dự kiến còn khoảng $etaMinutes phút"
@@ -661,8 +710,90 @@ fun OrderTrackingScreen(
                 }
             }
 
-            // 2. Thẻ thông tin tài xế Lalamove (Tên, Biển số, SĐT + nút Gọi điện)
+            // 2. Nếu đơn đang chờ thanh toán ZaloPay -> hiện thẻ Thanh toán lại / Hủy đơn rõ ràng (không báo đang tìm tài xế)
             val driver = order.delivery.driver
+            if (order.status == OrderStatus.PENDING_PAYMENT) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(1.2.dp, MiaoColors.BrandOrange.copy(alpha = 0.45f)),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text(
+                            text = "Đang chờ thanh toán ZaloPay",
+                            color = MiaoColors.BrandOrangeDark,
+                            fontSize = 15.5.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                        )
+                        Text(
+                            text = "Đơn chưa được gửi đến quán. Vui lòng hoàn tất thanh toán trên ZaloPay hoặc bấm Hủy đơn nếu bạn đã hủy giao dịch.",
+                            color = MiaoColors.OnSurfaceVariant,
+                            fontSize = 12.5.sp,
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Surface(
+                                color = Color(0xFFFFF1F0),
+                                shape = RoundedCornerShape(999.dp),
+                                border = BorderStroke(1.dp, Color(0xFFD92D20).copy(alpha = 0.35f)),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { viewModel.cancelPendingOrder() },
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(vertical = 11.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = "Hủy đơn",
+                                        color = Color(0xFFD92D20),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                    )
+                                }
+                            }
+                            Surface(
+                                color = MiaoColors.BrandOrange,
+                                shape = RoundedCornerShape(999.dp),
+                                modifier = Modifier
+                                    .weight(1.4f)
+                                    .clickable {
+                                        val payUrl = order.payment.paymentUrl
+                                        if (!payUrl.isNullOrBlank()) {
+                                            runCatching {
+                                                CustomTabsIntent.Builder()
+                                                    .setShowTitle(true)
+                                                    .build()
+                                                    .launchUrl(context, Uri.parse(payUrl))
+                                            }
+                                        } else {
+                                            viewModel.reconcilePendingPayment(silent = false)
+                                        }
+                                    },
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(vertical = 11.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = "Thanh toán ZaloPay",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+            // 2. Thẻ thông tin tài xế Lalamove (Tên, Biển số, SĐT + nút Gọi điện)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
@@ -750,6 +881,7 @@ fun OrderTrackingScreen(
                         }
                     }
                 }
+            }
             }
 
             // 3. Thẻ Đánh giá 1–5 sao ngay khi đơn đã Giao thành công

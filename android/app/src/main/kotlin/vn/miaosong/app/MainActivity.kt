@@ -27,9 +27,11 @@ import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import vn.miaosong.core.designsystem.components.MiaoLoadingOverlay
 import vn.miaosong.core.designsystem.theme.MiaoSongTheme
 import vn.miaosong.core.domain.AuthRepository
+import vn.miaosong.core.domain.StoreRepository
 import vn.miaosong.core.model.UserRole
 import vn.miaosong.feature.customer.CustomerHomeScreen
 import vn.miaosong.feature.customer.OrderTrackingScreen
@@ -46,7 +48,12 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var authRepository: AuthRepository
 
+    @Inject
+    lateinit var storeRepository: StoreRepository
+
     private val openMerchantKdsSignal = MutableStateFlow(0)
+    private val deepLinkStoreSlug = MutableStateFlow<String?>(null)
+    private val deepLinkTrackingOrderId = MutableStateFlow<String?>(null)
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -55,16 +62,38 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        handleIncomingIntent(intent)
+    }
+
+    private fun handleIncomingIntent(intent: Intent?) {
+        if (intent == null) return
         if (intent.getBooleanExtra("open_merchant_kds", false)) {
             openMerchantKdsSignal.value += 1
+        }
+        val uri = intent.data ?: return
+        val segments = uri.pathSegments
+        when {
+            // https://miaosong-pro.web.app/s/{slug}
+            uri.scheme == "https" && segments.size >= 2 && segments[0] == "s" -> {
+                deepLinkStoreSlug.value = segments[1].trim().takeIf { it.isNotEmpty() }
+            }
+            // miaosong://s/{slug}
+            uri.scheme == "miaosong" && uri.host == "s" -> {
+                deepLinkStoreSlug.value = segments.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() }
+            }
+            // https://miaosong-pro.web.app/pay/return?orderId=... hoặc miaosong://pay/return?orderId=...
+            (uri.scheme == "https" && uri.path?.startsWith("/pay/return") == true) ||
+                (uri.scheme == "miaosong" && uri.host == "pay") -> {
+                uri.getQueryParameter("orderId")?.takeIf { it.isNotBlank() }?.let {
+                    deepLinkTrackingOrderId.value = it
+                }
+            }
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (intent?.getBooleanExtra("open_merchant_kds", false) == true) {
-            openMerchantKdsSignal.value += 1
-        }
+        handleIncomingIntent(intent)
         requestNotificationPermissionIfNeeded()
         MiaoMessagingService.syncCurrentToken()
         enableEdgeToEdge(
@@ -88,6 +117,8 @@ class MainActivity : ComponentActivity() {
                 var merchantInitialTab by rememberSaveable { mutableStateOf(0) }
                 var isLoading by rememberSaveable { mutableStateOf(false) }
                 val kdsSignal by openMerchantKdsSignal.collectAsState()
+                val pendingStoreSlug by deepLinkStoreSlug.collectAsState()
+                val pendingOrderId by deepLinkTrackingOrderId.collectAsState()
 
                 // Khi chạm vào thông báo "Có đơn hàng mới" -> mở thẳng Tab Bếp (KDS) ở Chế độ Quán
                 LaunchedEffect(kdsSignal) {
@@ -100,6 +131,34 @@ class MainActivity : ComponentActivity() {
                         showOrderTracking = false
                         selectedStoreId = null
                     }
+                }
+
+                // Deep Link mở thẳng trang quán: https://miaosong-pro.web.app/s/{slug} hoặc miaosong://s/{slug}
+                LaunchedEffect(pendingStoreSlug) {
+                    val slug = pendingStoreSlug ?: return@LaunchedEffect
+                    val matchedStoreId = runCatching {
+                        storeRepository.observeStores().first().firstOrNull { store ->
+                            store.slug.equals(slug, ignoreCase = true) ||
+                                store.id.equals(slug, ignoreCase = true)
+                        }?.id
+                    }.getOrNull() ?: slug
+                    activeRole = UserRole.CUSTOMER
+                    showProfileScreen = false
+                    showCartScreen = false
+                    showOrderTracking = false
+                    selectedStoreId = matchedStoreId
+                    deepLinkStoreSlug.value = null
+                }
+
+                // Deep Link quay về từ ZaloPay: miaosong://pay/return?orderId=...
+                LaunchedEffect(pendingOrderId) {
+                    val orderId = pendingOrderId ?: return@LaunchedEffect
+                    activeRole = UserRole.CUSTOMER
+                    showProfileScreen = false
+                    showCartScreen = false
+                    trackingOrderId = orderId
+                    showOrderTracking = true
+                    deepLinkTrackingOrderId.value = null
                 }
                 var loadingMessage by rememberSaveable {
                     mutableStateOf("🍜 Tinh hoa ẩm thực Việt ✨")

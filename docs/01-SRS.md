@@ -92,7 +92,6 @@ Android 8.0 (API 26) trở lên, targetSdk 36; cần Internet; phân phối qua 
 | UC13 | Xem lịch sử đơn | Khách | Must |
 | UC14 | Đặt lại đơn | Khách | Must |
 | UC15 | Hủy đơn (trước khi quán xác nhận) | Khách | Should |
-| UC16 | Nhắn tin in-app với tài xế / quán | Khách | Must |
 | UC20 | Đăng nhập quán | Quán | Must |
 | UC21 | Quản lý nhóm món | Quán | Must |
 | UC22 | Quản lý món & nhóm tùy chọn | Quán | Must |
@@ -109,7 +108,6 @@ Android 8.0 (API 26) trở lên, targetSdk 36; cần Internet; phân phối qua 
 | UC33 | Cài lịch hoạt động thường ngày & ngày đặc biệt | Quán | Must |
 | UC34 | Xem đánh giá | Quán | Should |
 | UC35 | Thống kê doanh thu ngày | Quán | Could |
-| UC36 | Nhắn tin in-app với khách hàng | Quán | Must |
 | UC40 | Đồng bộ trạng thái tài xế (webhook) | Đối tác VC | Must |
 | UC41 | Xác nhận thanh toán (ZaloPay Callback) | ZaloPay | Must |
 | UC42 | Phát hiện đơn trễ | Bộ lập lịch | Should |
