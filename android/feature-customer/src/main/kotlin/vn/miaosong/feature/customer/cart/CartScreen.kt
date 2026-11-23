@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -407,19 +408,6 @@ private fun StoreCartBadgeHeader(storeName: String) {
                         color = MiaoColors.BrandOrangeDark,
                     )
                 }
-            }
-
-            Surface(
-                color = Color(0xFFE6FAF8),
-                shape = RoundedCornerShape(999.dp),
-            ) {
-                Text(
-                    text = "Đơn tách dòng tự động",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MiaoColors.SecondaryTeal,
-                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
-                )
             }
         }
     }
@@ -1181,6 +1169,7 @@ private fun CartBottomCheckoutBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .navigationBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
