@@ -214,6 +214,23 @@ class OrderRepositoryImpl @Inject constructor(
         ),
     )
 
+    override suspend fun cancelOrder(orderId: String, reason: String): AppResult<Unit> =
+        callUnit("cancelOrder", mapOf("orderId" to orderId, "reason" to reason))
+
+    override suspend fun confirmPayment(orderId: String, appTransId: String): AppResult<Boolean> {
+        return try {
+            val result = functions.getHttpsCallable("confirmPayment")
+                .call(mapOf("orderId" to orderId, "appTransId" to appTransId))
+                .await()
+            val root = result.getData() as? Map<*, *>
+            val data = root?.get("data") as? Map<*, *>
+            val paid = (data?.get("paymentStatus") as? String) == "PAID"
+            AppResult.Success(paid)
+        } catch (e: Exception) {
+            AppResult.Error("CONFIRM_PAYMENT_FAILED", e.localizedMessage ?: "Không thể kiểm tra thanh toán.")
+        }
+    }
+
     override suspend fun markReady(orderId: String): AppResult<Unit> =
         callUnit("markReady", mapOf("orderId" to orderId))
 

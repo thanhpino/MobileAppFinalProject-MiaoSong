@@ -825,10 +825,12 @@ private fun MerchantKitchenTab(
             OrderStatus.CANCELLED,
             OrderStatus.DELIVERY_FAILED,
         )
-        orders.sortedWith(
-            compareBy<Order> { it.status in terminalStatuses }
-                .thenByDescending { it.createdAtEpochMs },
-        )
+        orders
+            .filter { it.status != OrderStatus.PENDING_PAYMENT }
+            .sortedWith(
+                compareBy<Order> { it.status in terminalStatuses }
+                    .thenByDescending { it.createdAtEpochMs },
+            )
     }
 
     LazyColumn(
@@ -839,7 +841,7 @@ private fun MerchantKitchenTab(
         item {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = "Màn hình Bếp & Điều phối (${orders.size})",
+                    text = "Màn hình Bếp & Điều phối (${sortedOrders.size})",
                     style = MaterialTheme.typography.headlineSmall,
                     color = MiaoColors.OnSurface,
                 )
@@ -851,7 +853,7 @@ private fun MerchantKitchenTab(
             }
         }
 
-        if (orders.isEmpty()) {
+        if (sortedOrders.isEmpty()) {
             // 1. Mẫu Đơn mới: có đầy đủ nút "Từ chối đơn" & "Xác nhận nhận đơn" (Mục 3)
             if (!previewNewOrderRejected) {
                 item {
