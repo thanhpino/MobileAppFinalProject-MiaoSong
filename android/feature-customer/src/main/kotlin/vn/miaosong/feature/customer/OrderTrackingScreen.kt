@@ -135,6 +135,7 @@ import vn.miaosong.core.model.OrderStatus
 import vn.miaosong.core.model.PaymentMethod
 import vn.miaosong.core.model.PaymentStatus
 import vn.miaosong.core.model.PriceBreakdown
+import vn.miaosong.core.model.RefundStatus
 import vn.miaosong.core.model.Store
 import java.io.File
 import javax.inject.Inject
@@ -614,18 +615,22 @@ fun OrderTrackingScreen(
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                                 )
                             }
+                            val isCancelledOrRejected = order.status == OrderStatus.REJECTED ||
+                                order.status == OrderStatus.CANCELLED
                             Surface(
-                                color = if (isLateWarning) Color(0xFFFFF1F0) else Color(0xFFFFF2E6),
+                                color = if (isLateWarning || isCancelledOrRejected) Color(0xFFFFF1F0) else Color(0xFFFFF2E6),
                                 shape = RoundedCornerShape(999.dp),
                                 shadowElevation = 2.dp,
                             ) {
                                 Text(
                                     text = when {
                                         order.status == OrderStatus.COMPLETED -> "Đã giao thành công"
+                                        order.status == OrderStatus.REJECTED -> "Quán đã từ chối"
+                                        order.status == OrderStatus.CANCELLED -> "Đã hủy đơn"
                                         isLateWarning -> "Đang trễ (${elapsedMinutes}p)"
                                         else -> "Đang đúng giờ"
                                     },
-                                    color = if (isLateWarning) Color(0xFFD92D20) else MiaoColors.BrandOrangeDark,
+                                    color = if (isLateWarning || isCancelledOrRejected) Color(0xFFD92D20) else MiaoColors.BrandOrangeDark,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
@@ -789,6 +794,81 @@ fun OrderTrackingScreen(
                                     )
                                 }
                             }
+                        }
+                    }
+                }
+            } else if (order.status == OrderStatus.REJECTED || order.status == OrderStatus.CANCELLED) {
+                val isRejected = order.status == OrderStatus.REJECTED
+                val reasonText = order.rejectReason?.takeIf { it.isNotBlank() }
+                    ?: if (isRejected) "Quán không thể thực hiện đơn hàng lúc này." else "Đơn hàng đã bị hủy."
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(1.2.dp, Color(0xFFD92D20).copy(alpha = 0.35f)),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text(
+                            text = if (isRejected) "Đơn hàng bị quán từ chối" else "Đơn hàng đã bị hủy",
+                            color = Color(0xFFB42318),
+                            fontSize = 15.5.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                        )
+                        Surface(
+                            color = Color(0xFFFFF1F0),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                text = "Lý do từ quán: $reasonText",
+                                color = Color(0xFF912018),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            )
+                        }
+                        if (order.refundStatus != RefundStatus.NONE) {
+                            val (refundText, refundBg, refundFg) = when (order.refundStatus) {
+                                RefundStatus.REFUNDED -> Triple(
+                                    "✓ Đã hoàn tiền ${MoneyFormatter.formatVnd(order.payment.amountVnd)} về ZaloPay",
+                                    Color(0xFFECFDF3),
+                                    Color(0xFF027A48),
+                                )
+                                RefundStatus.PENDING -> Triple(
+                                    "⏳ Đang xử lý hoàn tiền ${MoneyFormatter.formatVnd(order.payment.amountVnd)} về ZaloPay...",
+                                    Color(0xFFFFFAEB),
+                                    Color(0xFFB54708),
+                                )
+                                RefundStatus.REFUND_FAILED -> Triple(
+                                    "⚠ Hoàn tiền ZaloPay thất bại — vui lòng liên hệ hỗ trợ",
+                                    Color(0xFFFFE4E6),
+                                    Color(0xFFB42318),
+                                )
+                                RefundStatus.NONE -> Triple("", Color.Transparent, Color.Transparent)
+                            }
+                            Surface(
+                                color = refundBg,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(
+                                    text = refundText,
+                                    color = refundFg,
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                                )
+                            }
+                        }
+                        if (!order.voucherCode.isNullOrBlank()) {
+                            Text(
+                                text = "Lượt sử dụng mã ${order.voucherCode} đã được hoàn lại vào tài khoản của bạn.",
+                                color = MiaoColors.OnSurfaceVariant,
+                                fontSize = 12.sp,
+                            )
                         }
                     }
                 }
