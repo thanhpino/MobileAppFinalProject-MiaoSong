@@ -57,6 +57,8 @@ Thumbs.db
 Desktop.ini
 .vscode/
 .agent/
+.archify/
+archify/
 *.swp
 *.swo
 *~

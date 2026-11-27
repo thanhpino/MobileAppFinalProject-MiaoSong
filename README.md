@@ -110,15 +110,15 @@ npm run build
 
 | # | Tài liệu | Nội dung | Trạng thái |
 |---|---|---|---|
-| 00 | [Project Plan](docs/00-project-plan.md) | Phạm vi MoSCoW, Modular Monolith, tech stack, timeline 12 ngày & rủi ro | ✅ Hoàn thành |
 | 01 | [SRS](docs/01-SRS.md) | Đặc tả yêu cầu phần mềm đầy đủ (Use Cases, FRs, BRs, NFRs) | ✅ Hoàn thành |
 | 02 | [Kiến trúc](docs/02-architecture.md) | ADR, C4 (L1–L3), Modular Monolith, Hexagonal, Android, Bảo mật | ✅ Hoàn thành |
 | 03 | [Use Case Diagrams](docs/03-use-case-diagrams.md) | Bộ sơ đồ Use Case (Actor, Tổng quan, Khách, Quán/Bếp, Hệ thống) | ✅ Hoàn thành |
-| 04 | [Sequence Diagrams](docs/04-sequence-diagrams.md) | Sequence Diagrams các luồng nghiệp vụ lõi (`SD-01` → `SD-13`) | ✅ Hoàn thành |
-| 05 | [Activity Diagrams](docs/05-activity-diagrams.md) | 8 Activity Diagrams (`AD-01` → `AD-08`) có Swimlane | ✅ Hoàn thành |
+| 04 | [Sequence Diagrams](docs/04-sequence-diagrams.md) | 16 Sequence Diagrams các luồng nghiệp vụ lõi (`SD-01` → `SD-16`) | ✅ Hoàn thành |
+| 05 | [Activity Diagrams](docs/05-activity-diagrams.md) | 5 Activity Diagrams luồng đặt đơn, KDS, hoàn tiền ZaloPay, Scheduler & Reorder | ✅ Hoàn thành |
 | 06 | [State · Data · Class](docs/06-state-data-class.md) | State Machine đơn hàng, ERD, Firestore Schema, Class Diagrams | ✅ Hoàn thành |
 | 07 | [Test Plan](docs/07-test-plan.md) | Kế hoạch kiểm thử (Test Cases) & Kịch bản Demo 2 máy thật | ✅ Hoàn thành |
-| 08 | [API Contract & Rules](docs/08-api-contract.md) | Callables, Webhooks, Error Codes, FCM, Firestore Rules, [Test Vectors](shared/test-vectors/pricing.json) | ✅ Hoàn thành |
+| 08 | [API Contract & Rules](docs/08-api-contract.md) | 15 Cloud Functions, Webhooks, Error Codes, FCM, Firestore Rules, [Test Vectors](shared/test-vectors/pricing.json) | ✅ Hoàn thành |
+| 09 | [Interactive Visual Flow (HTML)](docs/miaosong-visual-flow.html) | Trang HTML tương tác trực quan (Archify): Kiến trúc, Sequence E2E, Hoàn tiền ZaloPay & ERD | ✅ Hoàn thành |
 
 ---
 

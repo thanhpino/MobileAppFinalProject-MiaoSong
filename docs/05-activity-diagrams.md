@@ -2,8 +2,7 @@
 
 > **Dự án:** MiaoSong (喵送) — Nền tảng đặt món & điều phối giao hàng tự động (D2C F&B)  
 > **Người phụ trách:** Nhóm phát triển MiaoSong  
-> **Tài liệu liên quan:** [01-SRS.md](01-SRS.md) · [02-architecture.md](02-architecture.md) · [03-use-case-diagrams.md](03-use-case-diagrams.md) · [04-sequence-diagrams.md](04-sequence-diagrams.md) · [06-state-data-class.md](06-state-data-class.md)  
-> **Tệp mã nguồn PlantUML:** [diagrams/05-activity-diagrams/activity.puml](diagrams/05-activity-diagrams/activity.puml)
+> **Tài liệu liên quan:** [01-SRS.md](01-SRS.md) · [02-architecture.md](02-architecture.md) · [03-use-case-diagrams.md](03-use-case-diagrams.md) · [04-sequence-diagrams.md](04-sequence-diagrams.md) · [06-state-data-class.md](06-state-data-class.md)
 
 ---
 
@@ -11,7 +10,7 @@
 1. [Tổng quan Luồng hoạt động](#1-tổng-quan-luồng-hoạt-động)
 2. [Activity Diagram 1: Luồng Đặt hàng, Báo giá Ship & Thanh toán](#2-activity-diagram-1-luồng-đặt-hàng-báo-giá-ship--thanh-toán)
 3. [Activity Diagram 2: Luồng Tiếp nhận đơn, Vận hành Bếp (KDS) & Gọi Shipper Lalamove](#3-activity-diagram-2-luồng-tiếp-nhận-đơn-vận-hành-bếp-kds--gọi-shipper-lalamove)
-4. [Activity Diagram 3: Luồng Nhắn tin In-App Realtime (Khách hàng ↔ Quán/Tài xế)](#4-activity-diagram-3-luồng-nhắn-tin-in-app-realtime-khách-hàng--quántài-xế)
+4. [Activity Diagram 3: Luồng Hủy đơn / Từ chối đơn & Hoàn tiền tự động ZaloPay Sandbox](#4-activity-diagram-3-luồng-hủy-đơn--từ-chối-đơn--hoàn-tiền-tự-động-zalopay-sandbox)
 5. [Activity Diagram 4: Luồng Tác vụ Nền Tự động hóa & Xử lý Đơn quá hạn (Cloud Scheduler)](#5-activity-diagram-4-luồng-tác-vụ-nền-tự-động-hóa--xử-lý-đơn-quá-hạn-cloud-scheduler)
 6. [Activity Diagram 5: Luồng Đánh giá & Tái đặt hàng (Reorder)](#6-activity-diagram-5-luồng-đánh-giá--tái-đặt-hàng-reorder)
 
@@ -156,38 +155,36 @@ flowchart TD
 
 ---
 
-## 4. Activity Diagram 3: Luồng Nhắn tin In-App Realtime (Khách hàng ↔ Quán/Tài xế)
+## 4. Activity Diagram 3: Luồng Hủy đơn / Từ chối đơn & Hoàn tiền tự động ZaloPay Sandbox
 
-Sơ đồ mô tả tiến trình trao đổi tin nhắn trực tiếp hai chiều trong suốt đơn hàng, sử dụng kết hợp Firestore Realtime Snapshot và FCM Push Notification dự phòng.
+Sơ đồ mô tả tiến trình xử lý khi Quán từ chối đơn (`rejectOrder`) hoặc Khách tự hủy trước khi quán xác nhận (`cancelOrder`), đảm bảo hoàn trả lượt Voucher trong Transaction và tự động hoàn tiền qua ZaloPay Sandbox API.
 
 ```mermaid
 flowchart TD
-    START((Bắt đầu)) --> OPEN_CHAT["Người dùng mở Màn hình Chat từ Đơn hàng"]
-    OPEN_CHAT --> LISTEN_MSG["Lắng nghe Firestore Snapshot orders/{id}/messages"]
-    
-    LISTEN_MSG --> INPUT_MSG["Người gửi nhập tin nhắn & bấm 'Gửi'"]
-    INPUT_MSG --> VALIDATE_TEXT{"Nội dung<br/>hợp lệ (≤ 500 ký tự)?"}
-    
-    VALIDATE_TEXT -- "Không" --> WARN_INPUT["Báo lỗi nhập liệu"]
-    WARN_INPUT --> INPUT_MSG
-    
-    VALIDATE_TEXT -- "Có" --> WRITE_FS["Ghi document vào orders/{id}/messages/{msgId}"]
-    WRITE_FS --> FS_STORE[("Firestore lưu trữ")]
-    
-    FS_STORE --> REALTIME_EVENT["SnapshotListener kích hoạt sự kiện mới"]
-    REALTIME_EVENT --> RECV_ACTIVE{"Người nhận đang mở<br/>màn hình Chat này?"}
-    
-    RECV_ACTIVE -- "Đang mở chat" --> UI_RENDER["Tin nhắn tự động hiển thị & cuộn xuống đáy"]
-    UI_RENDER --> PLAY_POPO["Phát âm thanh nhẹ tin nhắn đến"]
-    
-    RECV_ACTIVE -- "Đang ở màn khác / App ở nền" --> TRIGGER_CF["Cloud Functions onMessageCreated kích hoạt"]
-    TRIGGER_CF --> LOOKUP_FCM["Tra cứu FCM Token của người nhận"]
-    LOOKUP_FCM --> SEND_FCM_NOTI["Gửi Push Notification kèm preview tin nhắn"]
-    SEND_FCM_NOTI --> RECV_TAP["Người nhận nhấn vào thông báo Push"]
-    RECV_TAP --> NAV_DEEPLINK["Điều hướng mở thẳng Màn hình Chat của đơn"]
-    
-    PLAY_POPO --> END_CHAT((Hoàn thành gửi tin))
-    NAV_DEEPLINK --> END_CHAT
+    START((Bắt đầu)) --> ACTOR{"Ai kích hoạt?"}
+    ACTOR -- "Quán bấm Từ chối" --> REJECT_CMD["Gọi CF rejectOrder(orderId, reason)"]
+    ACTOR -- "Khách bấm Hủy đơn" --> CANCEL_CMD["Gọi CF cancelOrder(orderId, reason)"]
+
+    REJECT_CMD --> TX_CHECK["Mở Firestore Transaction & kiểm tra OrderStateMachine"]
+    CANCEL_CMD --> TX_CHECK
+
+    TX_CHECK --> HAS_VOUCHER{"Đơn có áp dụng<br/>Voucher?"}
+    HAS_VOUCHER -- "Có" --> RESTORE_VOU["Hoàn trả lượt dùng: usedCount = usedCount - 1"]
+    HAS_VOUCHER -- "Không" --> CHECK_PAID{"Đã thanh toán<br/>ZaloPay (PAID)?"}
+    RESTORE_VOU --> CHECK_PAID
+
+    CHECK_PAID -- "Không (COD / UNPAID)" --> COMMIT_NONE["Ghi status = REJECTED/CANCELLED, refundStatus = NONE"]
+    CHECK_PAID -- "Có (ZaloPay PAID)" --> COMMIT_PENDING["Ghi status = REJECTED/CANCELLED, refundStatus = PENDING"]
+
+    COMMIT_PENDING --> CALL_ZLP["Gọi POST /v2/refund (HMAC-SHA256 key1, zp_trans_id)"]
+    CALL_ZLP --> ZLP_OK{"return_code<br/>in [1, 3]?"}
+    ZLP_OK -- "Thành công" --> SET_REFUNDED["Cập nhật refundStatus = REFUNDED"]
+    ZLP_OK -- "Thất bại" --> SET_FAILED["Cập nhật refundStatus = REFUND_FAILED & gửi cảnh báo LATE_ALERT"]
+
+    COMMIT_NONE --> PUSH_FCM["Trigger onOrderUpdated gửi Push FCM tới Khách & Quán"]
+    SET_REFUNDED --> PUSH_FCM
+    SET_FAILED --> PUSH_FCM
+    PUSH_FCM --> END_REFUND((Hoàn tất xử lý))
 ```
 
 ---
