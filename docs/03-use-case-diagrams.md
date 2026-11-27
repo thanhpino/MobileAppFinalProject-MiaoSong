@@ -250,7 +250,7 @@ flowchart LR
 
 Phân hệ kết nối giữa Khách hàng, Quán và Đối tác vận chuyển Lalamove, đồng thời duy trì kênh liên lạc trực tiếp (in-app chat) trong suốt vòng đời đơn hàng.
 
-![Phân hệ 3: Điều phối Giao vận & Giao tiếp Realtime](diagrams/03-use-case-diagrams/04-Phan-he-giao-van-nhan-tin.png)
+![Phân hệ 3: Điều phối Giao vận & Chăm sóc sau mua](diagrams/03-use-case-diagrams/04-Phan-he-giao-van-nhan-tin.png)
 
 ```mermaid
 flowchart TB

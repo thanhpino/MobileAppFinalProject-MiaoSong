@@ -67,7 +67,6 @@ rectangle "Phân hệ Quán ăn & Bếp (Merchant & Kitchen KDS)" {
     usecase "UC33: Cài đặt lịch hoạt động thường ngày" as UC33
     usecase "UC34: Xem đánh giá khách hàng" as UC34
     usecase "UC35: Thống kê doanh thu ngày" as UC35
-    usecase "UC36: Nhắn tin in-app với Khách hàng" as UC36
 }
 
 Q --> UC20
@@ -83,7 +82,6 @@ Q --> UC32
 Q --> UC33
 Q --> UC34
 Q --> UC35
-Q --> UC36
 
 UC26 ..> UC25 : <<extend>>
 UC27 ..> UC25 : <<extend>>

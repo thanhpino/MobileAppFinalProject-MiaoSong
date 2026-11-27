@@ -139,53 +139,47 @@ package "Shared Domain Core" {
         +calculate(lines: List, voucher: Voucher, shipFee: Long): PriceBreakdown
     }
 
-    class ChatMessage {
-        +id: String
-        +orderId: String
-        +senderId: String
-        +senderRole: SenderRole
-        +text: String
-        +createdAt: Timestamp
-        +isFromCustomer(): Boolean
-    }
-
     CartLine --> CartLineKey
     CartLine --> Money
     PricingCalculator ..> CartLine
 }
 
 ' ========================================================
-' 4. ANDROID CLEAN ARCHITECTURE: CHAT REALTIME
+' 4. ANDROID CLEAN ARCHITECTURE: ORDER TRACKING & OSMDROID MAP
 ' ========================================================
-package "Android Feature: In-App Chat" {
-    class ChatViewModel {
-        -observeMessagesUseCase: ObserveMessagesUseCase
-        -sendMessageUseCase: SendMessageUseCase
-        +uiState: StateFlow<ChatUiState>
-        +onSendMessage()
+package "Android Feature: Order Tracking & OSMDroid Map" {
+    class OrderTrackingViewModel {
+        -authRepository: AuthRepository
+        -orderRepository: OrderRepository
+        -storeRepository: StoreRepository
+        +uiState: StateFlow<OrderTrackingUiState>
+        +reconcilePendingPayment(silent: Boolean)
+        +cancelPendingOrder()
+        +submitReview(stars: Int, tags: List, comment: String, imageBytes: ByteArray?)
     }
 
-    class ChatUiState {
-        +orderId: String
-        +messages: List<ChatMessageUiModel>
-        +currentInput: String
-        +isSending: Boolean
+    class OrderTrackingUiState {
+        +order: Order
+        +store: Store?
+        +submittedStars: Int?
+        +feedbackMessage: String?
     }
 
-    interface ChatRepository {
-        +observeMessages(orderId: String): Flow<List<ChatMessage>>
-        +sendMessage(orderId: String, message: ChatMessage): Result<Unit>
+    interface OrderRepository {
+        +observeOrder(orderId: String): Flow<Order?>
+        +confirmPayment(orderId: String, appTransId: String): AppResult<Boolean>
+        +cancelOrder(orderId: String, reason: String): AppResult<Unit>
     }
 
-    class ChatRepositoryImpl {
-        -firestoreDataSource: FirestoreChatDataSource
-        +observeMessages(orderId: String): Flow<List<ChatMessage>>
-        +sendMessage(orderId: String, message: ChatMessage): Result<Unit>
+    class OrderRepositoryImpl {
+        -firestore: FirebaseFirestore
+        -functions: FirebaseFunctions
+        -storage: FirebaseStorage
     }
 
-    ChatViewModel --> ChatUiState
-    ChatViewModel --> ChatRepository
-    ChatRepository <|.. ChatRepositoryImpl
+    OrderTrackingViewModel --> OrderTrackingUiState
+    OrderTrackingViewModel --> OrderRepository
+    OrderRepository <|.. OrderRepositoryImpl
 }
 
 ' ========================================================

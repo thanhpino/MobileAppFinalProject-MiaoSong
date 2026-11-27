@@ -1,4 +1,4 @@
-﻿# 🐱 MiaoSong (喵送) — Master Plan v3
+# 🐱 MiaoSong (喵送) — Master Plan v3
 
 > Đề tài: Nền tảng đặt món & điều phối giao hàng tự động (D2C F&B) · Môn Phát triển ứng dụng di động HK1/2026-2027
 > Nhóm **2 người** · **12 ngày (20/11 → 01/12/2026)** · Đầu ra: app Android tải từ CH Play

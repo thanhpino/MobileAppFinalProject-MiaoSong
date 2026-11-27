@@ -119,28 +119,32 @@ partition "Luồng 2: Tiếp nhận đơn, Vận hành Bếp & Gọi Shipper Lal
 }
 
 ' ========================================================
-' LUỒNG 3: NHẮN TIN IN-APP REALTIME
+' LUỒNG 3: HỦY ĐƠN / TỪ CHỐI ĐƠN & HOÀN TIỀN ZALOPAY TỰ ĐỘNG
 ' ========================================================
-partition "Luồng 3: Nhắn tin In-App Realtime" {
-    (*) --> "Mở màn hình Chat từ Chi tiết đơn / Thẻ tài xế"
-    --> "Lắng nghe Firestore orders/{id}/messages"
-    --> "Người gửi nhập nội dung & bấm Gửi"
-    if "Nội dung hợp lệ (<= 500 ký tự)?" then
-        -->[Có] "Ghi document vào Firestore"
-        --> "SnapshotListener kích hoạt sự kiện tin mới"
-        if "Người nhận đang mở màn hình Chat này?" then
-            -->[Có] "Hiển thị tin nhắn & tự động cuộn xuống đáy"
-            --> "Phát âm thanh nhẹ tin nhắn đến"
+partition "Luồng 3: Hủy đơn / Từ chối đơn & Hoàn tiền ZaloPay tự động" {
+    (*) --> "Khách bấm Hủy đơn (PENDING_PAYMENT/PLACED) hoặc Quán bấm Từ chối (PLACED/CONFIRMED)"
+    --> "Mở Firestore Transaction & kiểm tra OrderStateMachine"
+    if "Đơn có áp dụng mã Voucher?" then
+        -->[Có] "Hoàn trả lượt dùng Voucher (usedCount - 1)"
+    else
+        -->[Không] "Giữ nguyên"
+    endif
+    if "Đơn đã thanh toán ZaloPay (PAID)?" then
+        -->[Có] "Cập nhật status = CANCELLED/REJECTED & refundStatus = PENDING"
+        --> "Gọi POST /v2/refund ZaloPay Sandbox (HMAC-SHA256 key1)"
+        if "return_code in [1, 3]?" then
+            -->[Thành công] "Cập nhật refundStatus = REFUNDED"
+            --> "Trigger onOrderUpdated gửi Push xác nhận hoàn tiền"
             --> (*)
         else
-            -->[Không (App nền / màn hình khác)] "Cloud Functions onMessageCreated kích hoạt"
-            --> "Tra cứu FCM token của người nhận"
-            --> "Gửi Push Notification kèm preview tin nhắn"
-            --> "Người nhận chạm thông báo để mở thẳng Chat"
+            -->[Thất bại] "Cập nhật refundStatus = REFUND_FAILED"
+            --> "Gửi cảnh báo khẩn LATE_ALERT cho cả Khách & Quán"
             --> (*)
         endif
     else
-        -->[Không] "Cảnh báo độ dài ký tự"
+        -->[Không (COD / UNPAID)] "Cập nhật status = CANCELLED/REJECTED & refundStatus = NONE"
+        --> "Trigger onOrderUpdated gửi Push thông báo cho Khách & Quán"
+        --> (*)
     endif
 }
 
