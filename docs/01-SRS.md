@@ -50,7 +50,7 @@ Hệ thống gồm 1 ứng dụng Android native (Kotlin/Jetpack Compose) với 
 | Quán (MERCHANT) | Đại diện phía quán ăn (chủ quán, thu ngân, bếp cùng vận hành trên thiết bị của quán); thao tác nhanh giờ cao điểm | Thấp–Trung bình |
 | Đối tác vận chuyển | Hệ thống Lalamove (external) | — |
 | Cổng thanh toán | ZaloPay (external) | — |
-| Dịch vụ bản đồ | OpenStreetMap (Nominatim, Geocoding, MapLibre/Osmdroid) | — |
+| Dịch vụ bản đồ | OpenStreetMap (OSMDroid, OSRM Routing, Nominatim Geocoding) | — |
 | FCM | Dịch vụ push (external) | — |
 | Bộ lập lịch | Tác nhân thời gian (Cloud Scheduler) | — |
 
@@ -107,10 +107,10 @@ Android 8.0 (API 26) trở lên, targetSdk 36; cần Internet; phân phối qua 
 | UC32 | Đổi trạng thái hoạt động | Quán | Must |
 | UC33 | Cài lịch hoạt động thường ngày & ngày đặc biệt | Quán | Must |
 | UC34 | Xem đánh giá | Quán | Should |
-| UC35 | Thống kê doanh thu ngày | Quán | Could |
+| UC35 | Thống kê doanh thu ngày *(chưa triển khai trong v1.0 — để dành phiên bản sau)* | Quán | Could |
 | UC40 | Đồng bộ trạng thái tài xế (webhook) | Đối tác VC | Must |
-| UC41 | Xác nhận thanh toán (ZaloPay Callback) | ZaloPay | Must |
-| UC42 | Phát hiện đơn trễ | Bộ lập lịch | Should |
+| UC41 | Xác nhận thanh toán (ZaloPay Callback & `confirmPayment`) | ZaloPay | Must |
+| UC42 | Phát hiện đơn trễ ≥ 30 phút *(xử lý trực tiếp trên KDS UI & `onOrderUpdated`)* | Quán / Hệ thống | Should |
 | UC43 | Hủy đơn chưa thanh toán quá hạn | Bộ lập lịch | Should |
 | UC44 | Gửi push theo trạng thái | Hệ thống, FCM | Must |
 

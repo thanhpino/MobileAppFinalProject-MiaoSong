@@ -191,7 +191,7 @@ Kịch bản tổng duyệt nghiệm thu trước hội đồng bằng 2 điện
 5. **[Máy 2]** Ngay lập tức chuông báo đơn mới reo lặp trên máy quán. Mở đơn, xem ghi chú đặc biệt $\rightarrow$ Bấm **"Xác nhận nhận đơn"**.
 6. **[Máy 1]** Nhận push notification: *"Quán đang chuẩn bị món 🍲"*.
 7. **[Máy 2]** Chuyển sang tab Màn hình Bếp (KDS) $\rightarrow$ Xem vé chế biến $\rightarrow$ Bấm **"Đã đóng gói"** $\rightarrow$ Chuyển tab sang Gọi Shipper $\rightarrow$ Bấm **"Gọi Shipper"**.
-8. **[Máy 1 & Máy 2]** Mở tính năng **Nhắn tin In-App**: Khách nhắn *"Bác tài giao đến cổng 1 giúp em nhé"*, máy Quán/Tài xế lập tức nhận tin realtime và nhắn phản hồi.
+8. **[Máy 1]** Khách theo dõi tiến độ đơn và lộ trình tài xế trực tiếp trên bản đồ **OSMDroid + OSRM** (kèm nút gọi tài xế trực tiếp khi cần).
 9. **[Laptop/Webhook]** Lalamove gán tài xế $\rightarrow$ Máy 1 rung chuông, hiện ngay Thẻ tài xế (Tên, SĐT, Biển số xe).
 10. **[Hệ thống]** Trạng thái chuyến chuyển sang `COMPLETED` $\rightarrow$ Máy 1 hiện hộp thoại đánh giá $\rightarrow$ Khách chấm 5 sao kèm nhận xét $\rightarrow$ Vào Lịch sử bấm **"Đặt lại đơn này"**.
 
@@ -211,3 +211,18 @@ Một tính năng được coi là hoàn tất chỉ khi đáp ứng đầy đ�
 3. ✅ **Firebase Emulator Suite:** Chạy thành công toàn bộ kịch bản tranh chấp Concurrency và Idempotency mà không phát sinh lỗi race condition.
 4. ✅ **Bảo mật:** Firestore Security Rules vượt qua 100% test case trong bộ test `@firebase/rules-unit-testing`.
 5. ✅ **Trải nghiệm thực tế:** Kịch bản demo trên 2 điện thoại thật chạy trơn tru, không có hiện tượng văng ứng dụng (ANR/Crash), âm thanh chuông báo và rung thông báo hoạt động chính xác.
+
+---
+
+## 9. Kết quả Kiểm thử Thực tế đã Thực thi (`v1.0.0 — Feature Freeze`)
+
+Để phân biệt rõ giữa **kế hoạch kiểm thử mục tiêu** (Mục 1–8) và **phạm vi đã chạy xác minh thực tế** trên phiên bản `v1.0.0`:
+
+| Hạng mục kiểm thử | Lệnh / Môi trường thực thi | Kết quả thực tế |
+|---|---|---|
+| **Backend Unit Tests & Shared Pricing Vectors** | `npm test` (`backend/functions`, dùng chung `shared/test-vectors/pricing.json`) | ✅ **PASS 12/12** |
+| **Kiểm tra Kiến trúc Modular Monolith & TypeScript** | `npm run lint` (`dependency-cruiser` 4 luật R1–R4 + `tsc --noEmit`) | ✅ **PASS (0 vi phạm)** |
+| **Android Kotlin Domain Unit Test** | `./gradlew :core:domain:test` (`SharedPricingVectorsTest`) | ✅ **PASS** |
+| **Kiểm thử E2E thực tế (2 máy / 2 chế độ)** | Kịch bản 1 (Happy Path + OSMDroid/OSRM) & Kịch bản 2 (ZaloPay Sandbox + Quán từ chối & Hoàn tiền tự động) | ✅ **PASS** |
+| **Đóng gói phát hành Google Play** | `./gradlew :app:bundleRelease` (R8/ProGuard & ShrinkResources) + Deploy 15 Cloud Functions live (`asia-southeast1`) | ✅ **PASS (`app-release.aab`)** |
+| **Emulator Integration & Compose UI Automation** | Firebase Emulator Suite / `createComposeRule` | ⏳ *Đã thiết kế test case chi tiết (Mục 4–6), ưu tiên kiểm chứng trực tiếp bằng E2E trên máy thật và Backend Live trong khung thời gian 12 ngày* |

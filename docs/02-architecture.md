@@ -221,7 +221,7 @@ flowchart TB
     APP[":app<br/>MainActivity, RoleRouter, Hilt graph, FCM service"]
     FC[":feature-customer"]
     FM[":feature-merchant"]
-    DOM[":core:domain<br/>UseCase, PricingCalculator, CartLineKey, StoreStatusResolver"]
+    DOM[":core:domain<br/>Repositories, PricingCalculator, CartLineKey"]
     DATA[":core:data<br/>Repository impl, Firestore, Room, Retrofit"]
     MOD[":core:model<br/>data class thuần Kotlin"]
     DSY[":core:designsystem<br/>MiaoTheme, token, component"]
