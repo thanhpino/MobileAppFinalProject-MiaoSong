@@ -6,8 +6,8 @@
 ## Mục lục
 1. [Quy ước chung cho Cloud Functions Callables](#1-quy-ước-chung-cho-cloud-functions-callables)
 2. [Bảng mã lỗi chuẩn (Standard Error Codes)](#2-bảng-mã-lỗi-chuẩn-standard-error-codes)
-3. [Đặc tả 10 Cloud Functions Callables](#3-đặc-tả-10-cloud-functions-callables)
-4. [Đặc tả 4 HTTP Webhook / Callback Endpoints](#4-đặc-tả-4-http-webhook--callback-endpoints)
+3. [Đặc tả 10 Cloud Functions Callables nghiệp vụ chính](#3-đặc-tả-10-cloud-functions-callables)
+4. [Đặc tả Webhooks, Mock Simulator & Background Triggers (Tổng 15 Cloud Functions)](#4-đặc-tả-webhooks-mock-simulator--background-triggers-tổng-15-cloud-functions)
 5. [Hợp đồng gói tin FCM Push Notification](#5-hợp-đồng-gói-tin-fcm-push-notification)
 6. [Thiết kế Firestore Security Rules](#6-thiết-kế-firestore-security-rules)
 7. [Thuật toán chuẩn hóa `CartLineKey` (Kotlin & TypeScript)](#7-thuật-toán-chuẩn-hóa-cartlinekey-kotlin--typescript)
@@ -276,7 +276,7 @@
 | `expirePendingOrders` | `onSchedule` (5 phút) | Tự hủy đơn `PENDING_PAYMENT` quá 15 phút & hoàn trả lượt Voucher trong Transaction |
 | `onOrderUpdated` | `onDocumentWritten` | Trigger `orders/{orderId}` gửi Push FCM tới Quán (chuông đơn mới, hủy, lỗi hoàn tiền/giao hàng) & Khách (tiến độ, từ chối, hoàn tiền) |
 
-**Payload mẫu của `/dev/mock-delivery/advance` (dùng khi demo nếu sandbox Lalamove không có tài xế nhận):**
+**Payload mẫu của callable `mockDeliveryAdvance` (dùng khi demo nếu sandbox Lalamove không có tài xế nhận):**
 ```json
 {
   "orderId": "ord_20261120_0012",
