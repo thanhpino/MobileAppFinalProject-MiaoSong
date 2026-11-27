@@ -2,8 +2,7 @@
 
 > **Dự án:** MiaoSong (喵送) — Nền tảng đặt món & điều phối giao hàng tự động (D2C F&B)  
 > **Người phụ trách:** Nhóm phát triển MiaoSong  
-> **Tài liệu liên quan:** [01-SRS.md](01-SRS.md) · [02-architecture.md](02-architecture.md) · [04-sequence-diagrams.md](04-sequence-diagrams.md) · [06-state-data-class.md](06-state-data-class.md)  
-> **Tệp mã nguồn PlantUML:** [diagrams/03-use-case-diagrams/use-case.puml](diagrams/03-use-case-diagrams/use-case.puml)
+> **Tài liệu liên quan:** [01-SRS.md](01-SRS.md) · [02-architecture.md](02-architecture.md) · [04-sequence-diagrams.md](04-sequence-diagrams.md) · [06-state-data-class.md](06-state-data-class.md)
 
 ---
 

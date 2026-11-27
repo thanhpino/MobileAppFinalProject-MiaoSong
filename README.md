@@ -110,7 +110,6 @@ npm run build
 
 | # | Tài liệu | Nội dung | Trạng thái |
 |---|---|---|---|
-| 00 | [Project Plan](docs/00-project-plan.md) | Phạm vi MoSCoW, Modular Monolith, tech stack, timeline 12 ngày & rủi ro | ✅ Hoàn thành |
 | 01 | [SRS](docs/01-SRS.md) | Đặc tả yêu cầu phần mềm đầy đủ (Use Cases, FRs, BRs, NFRs) | ✅ Hoàn thành |
 | 02 | [Kiến trúc](docs/02-architecture.md) | ADR, C4 (L1–L3), Modular Monolith, Hexagonal, Android, Bảo mật | ✅ Hoàn thành |
 | 03 | [Use Case Diagrams](docs/03-use-case-diagrams.md) | Bộ sơ đồ Use Case (Actor, Tổng quan, Khách, Quán/Bếp, Hệ thống) | ✅ Hoàn thành |
