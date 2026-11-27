@@ -1303,21 +1303,24 @@ private fun MerchantOrderKdsCard(
                 fontWeight = FontWeight.Bold,
             )
 
-            // Hiển thị rõ lý do từ chối & trạng thái hoàn tiền cho đơn đã từ chối
-            if (order.status == OrderStatus.REJECTED) {
+            // Hiển thị rõ lý do từ chối / hủy đơn & trạng thái hoàn tiền
+            if (order.status == OrderStatus.REJECTED || order.status == OrderStatus.CANCELLED) {
                 val refundNote = when (order.refundStatus) {
                     vn.miaosong.core.model.RefundStatus.REFUNDED -> " · Đã hoàn tiền cho khách"
                     vn.miaosong.core.model.RefundStatus.PENDING -> " · Đang xử lý hoàn tiền"
+                    vn.miaosong.core.model.RefundStatus.REFUND_FAILED -> " · Lỗi hoàn tiền (cần kiểm tra)"
                     else -> ""
                 }
-                val reasonText = order.rejectReason?.takeIf { it.isNotBlank() } ?: "Quán từ chối nhận đơn"
+                val prefix = if (order.status == OrderStatus.REJECTED) "Lý do từ chối" else "Lý do hủy"
+                val reasonText = order.rejectReason?.takeIf { it.isNotBlank() }
+                    ?: if (order.status == OrderStatus.REJECTED) "Quán từ chối nhận đơn" else "Khách hủy đơn"
                 Surface(
                     color = Color(0xFFFFF1F0),
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
-                        text = "Lý do từ chối: $reasonText$refundNote",
+                        text = "$prefix: $reasonText$refundNote",
                         color = Color(0xFF93000A),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
