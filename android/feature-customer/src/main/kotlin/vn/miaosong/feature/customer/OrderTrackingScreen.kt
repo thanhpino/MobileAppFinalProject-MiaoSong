@@ -246,10 +246,21 @@ class OrderTrackingViewModel @Inject constructor(
     fun cancelPendingOrder() {
         val currentOrder = uiState.value.order
         if (currentOrder.id.startsWith("demo_")) return
+        val isPaidZaloPay = currentOrder.payment.method == PaymentMethod.ZALOPAY &&
+            currentOrder.payment.status == PaymentStatus.PAID
+        val reason = if (currentOrder.status == OrderStatus.PENDING_PAYMENT) {
+            "Khách hàng hủy giao dịch ZaloPay"
+        } else {
+            "Khách hàng hủy đơn trước khi quán xác nhận"
+        }
         viewModelScope.launch {
-            when (val res = orderRepository.cancelOrder(currentOrder.id, "Khách hàng hủy giao dịch ZaloPay")) {
+            when (val res = orderRepository.cancelOrder(currentOrder.id, reason)) {
                 is AppResult.Success -> {
-                    feedbackState.value = "Đã hủy đơn chưa thanh toán (lượt voucher đã được hoàn lại)."
+                    feedbackState.value = if (isPaidZaloPay) {
+                        "Đã hủy đơn & gửi yêu cầu hoàn tiền ZaloPay (lượt voucher đã được hoàn lại)."
+                    } else {
+                        "Đã hủy đơn hàng thành công (lượt voucher đã được hoàn lại)."
+                    }
                 }
                 is AppResult.Error -> {
                     feedbackState.value = res.message
@@ -381,16 +392,41 @@ fun OrderTrackingScreen(
     val dropoffLat = order.address.lat.takeIf { it != 0.0 } ?: 10.7326
     val dropoffLng = order.address.lng.takeIf { it != 0.0 } ?: 106.6998
 
-    // Nội suy vị trí tài xế theo trạng thái đơn hàng
-    val driverProgress = when (order.status) {
-        OrderStatus.PENDING_PAYMENT, OrderStatus.PLACED, OrderStatus.CONFIRMED, OrderStatus.READY, OrderStatus.FINDING_DRIVER -> 0.0
-        OrderStatus.DRIVER_ASSIGNED -> 0.18
-        OrderStatus.ARRIVED_AT_STORE -> 0.05
-        OrderStatus.PICKED_UP -> 0.45
-        OrderStatus.DELIVERING -> 0.78
+    // Chỉ hiển thị ghim tài xế khi đã có tài xế nhận chuyến (không hiện khi mới đặt/đang chờ quán)
+    val showDriverOnMap = order.status in setOf(
+        OrderStatus.DRIVER_ASSIGNED,
+        OrderStatus.ARRIVED_AT_STORE,
+        OrderStatus.PICKED_UP,
+        OrderStatus.DELIVERING,
+        OrderStatus.COMPLETED,
+    )
+
+    // Nội suy vị trí tài xế theo trạng thái đơn hàng + dịch chuyển mượt realtime dọc theo đường bộ OSRM khi đang giao
+    val baseDriverProgress = when (order.status) {
+        OrderStatus.DRIVER_ASSIGNED -> 0.04
+        OrderStatus.ARRIVED_AT_STORE -> 0.08
+        OrderStatus.PICKED_UP -> 0.32
+        OrderStatus.DELIVERING -> 0.62
         OrderStatus.COMPLETED -> 1.0
         else -> 0.0
     }
+    var liveDriftProgress by remember(order.id, order.status) { mutableStateOf(0.0) }
+    LaunchedEffect(order.id, order.status) {
+        liveDriftProgress = 0.0
+        val maxDrift = when (order.status) {
+            OrderStatus.PICKED_UP -> 0.22
+            OrderStatus.DELIVERING -> 0.32
+            else -> 0.0
+        }
+        if (maxDrift > 0.0) {
+            val steps = 16
+            for (step in 1..steps) {
+                kotlinx.coroutines.delay(2500L)
+                liveDriftProgress = maxDrift * (step.toDouble() / steps)
+            }
+        }
+    }
+    val driverProgress = (baseDriverProgress + liveDriftProgress).coerceIn(0.0, 1.0)
     // Cache tuyến đường bộ ngắn nhất trong RAM để thoát ra vào lại hiển thị ngay 0ms (không bị nháy qua sông)
     val routeCacheKey = remember(pickupLat, pickupLng, dropoffLat, dropoffLng) {
         String.format("%.4f,%.4f->%.4f,%.4f", pickupLat, pickupLng, dropoffLat, dropoffLng)
@@ -554,6 +590,7 @@ fun OrderTrackingScreen(
                             dropoff = GeoPoint(dropoffLat, dropoffLng),
                             driver = driverGeoPoint,
                             driverIndex = driverIndex,
+                            showDriver = showDriverOnMap,
                             routePoints = roadRoutePoints,
                             storeName = order.storeName.ifBlank { "Quán MiaoSong" },
                             dropoffLabel = order.address.fullText.ifBlank { "Điểm giao hàng" },
@@ -872,6 +909,56 @@ fun OrderTrackingScreen(
                         }
                     }
                 }
+            } else if (order.status == OrderStatus.PLACED) {
+                val isPaidZaloPay = order.payment.method == PaymentMethod.ZALOPAY &&
+                    order.payment.status == PaymentStatus.PAID
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(1.dp, MiaoColors.BrandOrange.copy(alpha = 0.25f)),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text(
+                            text = "Đang chờ ${order.storeName.ifBlank { "quán" }} xác nhận đơn",
+                            color = MiaoColors.OnSurface,
+                            fontSize = 15.5.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                        )
+                        Text(
+                            text = if (isPaidZaloPay) {
+                                "Đã thanh toán ZaloPay thành công. Bạn vẫn có thể hủy đơn & nhận hoàn tiền tự động trước khi quán xác nhận."
+                            } else {
+                                "Đơn đã được gửi tới bếp. Bạn vẫn có thể hủy đơn trước khi quán xác nhận."
+                            },
+                            color = MiaoColors.OnSurfaceVariant,
+                            fontSize = 12.5.sp,
+                        )
+                        Surface(
+                            color = Color(0xFFFFF1F0),
+                            shape = RoundedCornerShape(999.dp),
+                            border = BorderStroke(1.dp, Color(0xFFD92D20).copy(alpha = 0.35f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { viewModel.cancelPendingOrder() },
+                        ) {
+                            Box(
+                                modifier = Modifier.padding(vertical = 11.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = if (isPaidZaloPay) "Hủy đơn & Hoàn tiền ZaloPay" else "Hủy đơn hàng",
+                                    color = Color(0xFFD92D20),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                )
+                            }
+                        }
+                    }
+                }
             } else {
             // 2. Thẻ thông tin tài xế Lalamove (Tên, Biển số, SĐT + nút Gọi điện)
             Card(
@@ -1106,6 +1193,7 @@ private fun OsmDeliveryMapView(
     dropoff: GeoPoint,
     driver: GeoPoint,
     driverIndex: Int,
+    showDriver: Boolean,
     routePoints: List<GeoPoint>,
     storeName: String,
     dropoffLabel: String,
@@ -1250,8 +1338,8 @@ private fun OsmDeliveryMapView(
             }
             map.overlays.add(dropoffMarker)
 
-            // 4. Ghim Tài xế Lalamove: Tài xế đội mũ bảo hiểm màu cam đàng hoàng + vòng halo phát sáng
-            if (routePoints.size >= 2) {
+            // 4. Ghim Tài xế Lalamove: chỉ hiện khi đã gán tài xế & bám đúng tuyến đường OSRM realtime
+            if (showDriver && routePoints.size >= 2) {
                 val driverMarker = Marker(map).apply {
                     position = driver
                     title = driverName?.let { "Tài xế Lalamove: $it" } ?: "Tài xế Lalamove"

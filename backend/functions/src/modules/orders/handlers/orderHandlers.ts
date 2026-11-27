@@ -532,6 +532,9 @@ export const cancelOrder = onCall(async (request) => {
     const user = requireAuth(request.auth);
     const { orderId, reason } = request.data as { orderId: string; reason?: string };
     const ref = db.collection("orders").doc(orderId);
+    let paymentToRefund: { method: PaymentMethod; zpTransId: string; amountVnd: number } | null = null;
+    const cancelReason = reason ?? "Khách hàng hủy đơn trước khi quán xác nhận";
+
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       if (!snap.exists || snap.data()!.customerId !== user.uid) {
@@ -543,9 +546,17 @@ export const cancelOrder = onCall(async (request) => {
         const vRef = db.collection("stores").doc(order.storeId).collection("vouchers").doc(order.voucherId);
         tx.update(vRef, { usedCount: admin.firestore.FieldValue.increment(-1) });
       }
+      if (order.payment?.status === "PAID" && order.payment?.method === "ZALOPAY" && order.payment?.gatewayTxnId) {
+        paymentToRefund = {
+          method: "ZALOPAY",
+          zpTransId: String(order.payment.gatewayTxnId),
+          amountVnd: Number(order.payment.amountVnd),
+        };
+      }
       tx.update(ref, {
         status: "CANCELLED",
-        rejectReason: reason ?? "Khách hàng hủy đơn",
+        rejectReason: cancelReason,
+        refundStatus: paymentToRefund ? "PENDING" : "NONE",
         statusHistory: admin.firestore.FieldValue.arrayUnion({
           status: "CANCELLED",
           at: new Date().toISOString(),
@@ -553,7 +564,16 @@ export const cancelOrder = onCall(async (request) => {
         }),
       });
     });
-    return { ok: true, data: { orderId, status: "CANCELLED" } };
+
+    let refundStatus = paymentToRefund ? "PENDING" : "NONE";
+    if (paymentToRefund) {
+      const p = paymentToRefund as { method: PaymentMethod; zpTransId: string; amountVnd: number };
+      const res = await PaymentGatewayFactory.of(p.method).refund(p.zpTransId, p.amountVnd, cancelReason);
+      refundStatus = res.success ? "REFUNDED" : "REFUND_FAILED";
+      await ref.update({ refundStatus });
+    }
+
+    return { ok: true, data: { orderId, status: "CANCELLED", refundStatus } };
   } catch (err) {
     throw toHttpsError(err);
   }
