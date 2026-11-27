@@ -18,7 +18,7 @@
 | [SD-11](#sd-11--phát-hiện-đơn-trễ--hủy-đơn-chưa-thanh-toán) | Phát hiện đơn trễ & hủy đơn chưa thanh toán | UC42, UC43 |
 | [SD-12](#sd-12--đánh-giá-đơn) | Đánh giá đơn | UC12 |
 | [SD-13](#sd-13--đặt-lại-đơn) | Đặt lại đơn | UC14 |
-| [SD-14](#sd-14--nhắn-tin-in-app-realtime) | Nhắn tin in-app realtime | UC16, UC36 |
+| [SD-14](#sd-14--khách-tự-hủy-đơn--hoàn-tiền-zalopay-tự-động) | Khách tự hủy đơn & hoàn tiền ZaloPay tự động | UC15 |
 | [SD-15](#sd-15--vận-hành-màn-hình-bếp-kds--đóng-gói) | Vận hành màn hình bếp (KDS) & đóng gói | UC28, UC29 |
 | [SD-16](#sd-16--đổi-trạng-thái-quán--lịch-bận-tức-thời) | Đổi trạng thái quán & lịch bận tức thời | UC32, UC33 |
 
@@ -419,38 +419,35 @@ sequenceDiagram
 
 ---
 
-## SD-14 — Nhắn tin in-app realtime
+## SD-14 — Khách tự hủy đơn & hoàn tiền ZaloPay tự động
 
 ```mermaid
 sequenceDiagram
-    actor U1 as Người gửi (Khách/Quán)
-    participant APP1 as App người gửi
+    actor KH as Khách hàng
+    participant APP as MiaoSong (OrderTrackingScreen)
+    participant CF as CF cancelOrder
     participant FS as Firestore
-    participant CF as CF onMessageCreated
+    participant ZLP as ZaloPay Sandbox (/v2/refund)
+    participant TRG as CF onOrderUpdated
     participant FCM as FCM
-    participant APP2 as App người nhận
-    actor U2 as Người nhận (Quán/Khách)
 
-    U1->>APP1: Nhập tin nhắn & bấm "Gửi"
-    APP1->>FS: addDocument(orders/{id}/messages, {senderId, senderRole, text, createdAt})
-    FS-->>APP1: commit OK (UI hiện dấu tích gửi)
-    
-    par Realtime Snapshot
-        FS-)APP2: SnapshotListener onSnapshot(messages)
-        alt Người nhận đang mở màn hình Chat
-            APP2->>APP2: Render tin nhắn mới, tự động cuộn xuống đáy
-            APP2-->>U2: Phát âm thanh popo nhẹ
-        end
-    and Background Push Fallback
-        FS-)CF: trigger onMessageCreated
-        CF->>FS: tra cứu fcmTokens của người nhận
-        alt Người nhận không ở màn Chat / App chạy ngầm
-            CF->>FCM: data message {type: "NEW_MESSAGE", orderId, text}
-            FCM-)APP2: Push Notification "💬 Tin nhắn mới từ {senderName}"
-            U2->>APP2: Chạm vào Push Notification
-            APP2->>APP2: Deep link điều hướng mở thẳng ChatScreen(orderId)
-        end
+    KH->>APP: Bấm "Hủy đơn & Hoàn tiền ZaloPay" (khi status in [PENDING_PAYMENT, PLACED])
+    APP->>CF: cancelOrder({ orderId, reason })
+    CF->>FS: runTransaction: kiểm tra OrderStateMachine.assertTransition(status, CANCELLED)
+    alt Có dùng Voucher
+        CF->>FS: decrement stores/{storeId}/vouchers/{voucherId}.usedCount (-1)
     end
+    alt Đơn đã thanh toán ZaloPay (payment.status == PAID)
+        CF->>FS: update { status: CANCELLED, refundStatus: PENDING, rejectReason }
+        CF->>ZLP: POST /v2/refund (HMAC-SHA256 key1, zp_trans_id, amountVnd)
+        ZLP-->>CF: { return_code: 1 | 3, refund_id }
+        CF->>FS: update { refundStatus: REFUNDED }
+    else Đơn COD hoặc chưa thanh toán
+        CF->>FS: update { status: CANCELLED, refundStatus: NONE, rejectReason }
+    end
+    CF-->>APP: { ok: true, status: CANCELLED, refundStatus }
+    FS-)TRG: onDocumentWritten(orders/{orderId})
+    TRG->>FCM: push Khách (đã hủy / đã hoàn tiền) + push Bếp Quán (nếu trước đó là PLACED)
 ```
 
 ---

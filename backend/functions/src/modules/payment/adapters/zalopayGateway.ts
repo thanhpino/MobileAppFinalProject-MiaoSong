@@ -159,8 +159,9 @@ export class ZaloPayGateway implements PaymentGateway {
       signal: AbortSignal.timeout(8000),
     });
     const json = (await res.json()) as { return_code: number; return_message: string; refund_id?: number };
+    // ZaloPay v2 /v2/refund: return_code 1 = Thành công, 3 = Đang xử lý hoàn tiền, 2 = Thất bại
     return {
-      success: json.return_code === 1 || json.return_code === 2,
+      success: json.return_code === 1 || json.return_code === 3,
       refundId: json.refund_id ? String(json.refund_id) : mRefundId,
       message: json.return_message,
     };

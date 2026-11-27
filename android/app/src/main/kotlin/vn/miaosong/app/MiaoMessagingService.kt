@@ -7,6 +7,7 @@ import androidx.core.app.NotificationCompat
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -27,7 +28,7 @@ class MiaoMessagingService : FirebaseMessagingService() {
                     FirebaseFirestore.getInstance()
                         .collection("users")
                         .document(uid)
-                        .update("fcmTokens", FieldValue.arrayUnion(token))
+                        .set(mapOf("fcmTokens" to FieldValue.arrayUnion(token)), SetOptions.merge())
                 }
             }
         }
@@ -38,7 +39,7 @@ class MiaoMessagingService : FirebaseMessagingService() {
             FirebaseFirestore.getInstance()
                 .collection("users")
                 .document(uid)
-                .update("fcmTokens", FieldValue.arrayUnion(token))
+                .set(mapOf("fcmTokens" to FieldValue.arrayUnion(token)), SetOptions.merge())
         }
     }
 
@@ -54,10 +55,11 @@ class MiaoMessagingService : FirebaseMessagingService() {
         val title = message.notification?.title ?: message.data["title"] ?: "MiaoSong"
         val body = message.notification?.body ?: message.data["body"] ?: ""
 
+        val targetRole = message.data["targetRole"]
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("orderId", message.data["orderId"])
-            if (type == "NEW_ORDER") {
+            if (type == "NEW_ORDER" || targetRole == "MERCHANT") {
                 putExtra("open_merchant_kds", true)
             }
         }
@@ -72,6 +74,7 @@ class MiaoMessagingService : FirebaseMessagingService() {
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
             .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pending)

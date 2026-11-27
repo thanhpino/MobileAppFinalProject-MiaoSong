@@ -193,15 +193,15 @@
   *(Nếu `paymentMethod == "COD"`, `status` trả về `"PLACED"` ngay lập tức và `paymentUrl = null`)*.
 
 ### 3.4 `confirmPayment`
-- **Module:** `payment` · **Người gọi:** `CUSTOMER` (khi quay về app qua App Link `/pay/return`) · **Use case:** `UC09`, `UC41`
-- **Request:** `{ "orderId": "ord_20261120_0012" }`
-- **Response (`data`):** `{ "orderId": "ord_20261120_0012", "paymentStatus": "PAID", "orderStatus": "PLACED" }`
+- **Module:** `payment` · **Người gọi:** `CUSTOMER` (tự động gọi khi `ON_RESUME` quay về app từ ZaloPay Custom Tab) · **Use case:** `UC09`, `UC41`
+- **Request:** `{ "orderId": "ord_20261120_0012", "appTransId": "261120_MS2611200012" }`
+- **Response (`data`):** `{ "orderId": "ord_20261120_0012", "paymentStatus": "PAID" }`
 
 ### 3.5 `cancelOrder`
-- **Module:** `orders` · **Người gọi:** `CUSTOMER` · **Use case:** `UC15`
-- **Điều kiện:** Chỉ hủy được khi `status in ['PENDING_PAYMENT', 'PLACED']` (quán chưa xác nhận).
-- **Request:** `{ "orderId": "ord_20261120_0012", "reason": "Đổi địa chỉ nhận hàng" }`
-- **Response (`data`):** `{ "orderId": "ord_20261120_0012", "status": "CANCELLED", "refundStatus": "NONE" }`
+- **Module:** `orders` + `payment` · **Người gọi:** `CUSTOMER` · **Use case:** `UC15`
+- **Điều kiện:** Chỉ hủy được khi `status in ['PENDING_PAYMENT', 'PLACED']` (quán chưa xác nhận). Tự động hoàn trả lượt Voucher và gọi `ZaloPayGateway.refund()` nếu đơn `PLACED` đã thanh toán ZaloPay (`payment.status == 'PAID'`).
+- **Request:** `{ "orderId": "ord_20261120_0012", "reason": "Khách hàng hủy đơn trước khi quán xác nhận" }`
+- **Response (`data`):** `{ "orderId": "ord_20261120_0012", "status": "CANCELLED", "refundStatus": "REFUNDED" }`
 
 ### 3.6 `confirmOrder`
 - **Module:** `orders` · **Người gọi:** `MERCHANT` · **Use case:** `UC26`
@@ -258,20 +258,23 @@
     "orderId": "ord_20261120_0012",
     "stars": 5,
     "tags": ["Nóng hổi", "Đóng gói kỹ"],
-    "comment": "Nước lèo đậm đà, giao nhanh!"
+    "comment": "Nước lèo đậm đà, giao nhanh!",
+    "imageUrl": "https://firebasestorage.googleapis.com/v0/b/miaosong-pro.firebasestorage.app/..."
   }
   ```
 - **Response (`data`):** `{ "reviewId": "ord_20261120_0012", "newStoreRatingAvg": 4.85, "newStoreRatingCount": 42 }`
 
 ---
 
-## 4. Đặc tả 3 HTTP Webhook / Callback Endpoints
+## 4. Đặc tả Webhooks, Mock Simulator & Background Triggers (Tổng 15 Cloud Functions)
 
-| Endpoint | Method | Cơ chế xác thực | Xử lý Idempotency |
-|---|---|---|---|
-| `/webhooks/lalamove` | `POST` | Kiểm tra HMAC-SHA256 trong header `Authorization` của Lalamove | Lưu `processedEvents/LALAMOVE_{eventId}` trong Firestore Transaction |
-| `/payments/zalopay/callback` | `POST` | Xác minh MAC HMAC-SHA256 với `key2` của ZaloPay, đối chiếu `amount` và trạng thái | Lưu `processedEvents/ZALOPAY_{app_trans_id}` |
-| `/dev/mock-delivery/advance` | `POST` | Chỉ bật khi `store.deliveryProvider == "MOCK"` hoặc môi trường Emulator; yêu cầu token `MERCHANT` | Cho phép bấm chuyển từng chặng `DRIVER_ASSIGNED → ARRIVED_AT_STORE → PICKED_UP → DELIVERING → COMPLETED` khi demo |
+| Function Name | Loại | Cơ chế xác thực & Xử lý Idempotency |
+|---|---|---|
+| `lalamoveWebhook` | `onRequest` (`POST`) | Kiểm tra HMAC-SHA256 trong header `Authorization` của Lalamove; lưu `processedEvents/LALAMOVE_{eventId}` |
+| `zalopayCallback` | `onRequest` (`POST`) | Xác minh MAC HMAC-SHA256 với `key2` của ZaloPay (`app_id = 2554`); lưu `processedEvents/ZALOPAY_{zp_trans_id}` |
+| `mockDeliveryAdvance` | `onCall` | Yêu cầu quyền `MERCHANT`; đẩy từng chặng `DRIVER_ASSIGNED → ARRIVED_AT_STORE → PICKED_UP → DELIVERING → COMPLETED` khi demo |
+| `expirePendingOrders` | `onSchedule` (5 phút) | Tự hủy đơn `PENDING_PAYMENT` quá 15 phút & hoàn trả lượt Voucher trong Transaction |
+| `onOrderUpdated` | `onDocumentWritten` | Trigger `orders/{orderId}` gửi Push FCM tới Quán (chuông đơn mới, hủy, lỗi hoàn tiền/giao hàng) & Khách (tiến độ, từ chối, hoàn tiền) |
 
 **Payload mẫu của `/dev/mock-delivery/advance` (dùng khi demo nếu sandbox Lalamove không có tài xế nhận):**
 ```json

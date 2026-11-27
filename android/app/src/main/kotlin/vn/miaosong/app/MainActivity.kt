@@ -69,6 +69,11 @@ class MainActivity : ComponentActivity() {
         if (intent == null) return
         if (intent.getBooleanExtra("open_merchant_kds", false)) {
             openMerchantKdsSignal.value += 1
+        } else {
+            // Chạm vào thông báo trạng thái đơn / hoàn tiền / hủy đơn phía Khách -> mở thẳng Theo dõi đơn
+            intent.getStringExtra("orderId")?.takeIf { it.isNotBlank() }?.let {
+                deepLinkTrackingOrderId.value = it
+            }
         }
         val uri = intent.data ?: return
         val segments = uri.pathSegments
