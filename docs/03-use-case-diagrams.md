@@ -11,7 +11,7 @@
 2. [Sơ đồ Use Case Tổng thể (System Overview)](#2-sơ-đồ-use-case-tổng-thể-system-overview)
 3. [Phân hệ 1: Trải nghiệm Khách hàng & Đặt món](#3-phân-hệ-1-trải-nghiệm-khách-hàng--đặt-món)
 4. [Phân hệ 2: Vận hành Quán ăn & Màn hình Bếp (KDS)](#4-phân-hệ-2-vận-hành-quán-ăn--màn-hình-bếp-kds)
-5. [Phân hệ 3: Điều phối Giao vận & Giao tiếp Realtime](#5-phân-hệ-3-điều-phối-giao-vận--giao-tiếp-realtime)
+5. [Phân hệ 3: Điều phối Giao vận & Chăm sóc sau mua](#5-phân-hệ-3-điều-phối-giao-vận--chăm-sóc-sau-mua)
 6. [Phân hệ 4: Tác vụ Nền & Tích hợp Đối tác](#6-phân-hệ-4-tác-vụ-nền--tích-hợp-đối-tác)
 7. [Bảng Ma trận Quan hệ Use Case (Include / Extend)](#7-bảng-ma-trận-quan-hệ-use-case-include--extend)
 
@@ -22,8 +22,8 @@
 Hệ thống **MiaoSong** phục vụ mô hình D2C F&B tự động hóa hoàn toàn với các tác nhân:
 
 ### 1.1 Tác nhân chính (Primary Actors)
-* **Khách hàng (CUSTOMER):** Người dùng cài đặt ứng dụng Android để tìm quán, tùy chỉnh món ăn, áp dụng mã giảm giá, xem cước phí giao hàng theo thời gian thực, thanh toán (COD hoặc ZaloPay Sandbox), theo dõi tài xế, nhắn tin trực tiếp và đánh giá sau khi nhận món.
-* **Quán (MERCHANT):** Đại diện duy nhất cho phía nhà hàng (bao gồm chủ quán, thu ngân và nhân viên bếp dùng chung 1 vai trò hệ thống). Thực hiện quản lý menu, món ăn kèm (topping/size), voucher, nhận đơn có chuông báo, xác nhận/từ chối đơn (kèm hoàn tiền tự động), thao tác màn hình bếp (KDS), gọi shipper Lalamove, nhắn tin với khách và thiết lập lịch hoạt động.
+* **Khách hàng (CUSTOMER):** Người dùng cài đặt ứng dụng Android để tìm quán, tùy chỉnh món ăn, áp dụng mã giảm giá, xem cước phí giao hàng theo thời gian thực, thanh toán (COD hoặc ZaloPay Sandbox), theo dõi vị trí tài xế trên bản đồ OSMDroid, gọi điện trực tiếp, đánh giá kèm ảnh và đặt lại đơn.
+* **Quán (MERCHANT):** Đại diện duy nhất cho phía nhà hàng (bao gồm chủ quán, thu ngân và nhân viên bếp dùng chung 1 vai trò hệ thống). Thực hiện quản lý menu, món ăn kèm (topping/size), voucher, nhận đơn có chuông báo (Foreground Service + FCM), xác nhận/từ chối đơn (kèm hoàn tiền ZaloPay tự động), thao tác màn hình bếp (KDS), gọi shipper Lalamove và thiết lập trạng thái/lịch hoạt động.
 
 ### 1.2 Tác nhân phụ & Hệ thống bên ngoài (Secondary / Supporting Actors)
 * **Đối tác giao vận (Lalamove API v3):** Tiếp nhận yêu cầu báo giá theo km thực tế, nhận lệnh tạo đơn giao hàng xe máy (`MOTORCYCLE`), điều phối tài xế và gửi webhook trạng thái hành trình.
@@ -245,9 +245,9 @@ flowchart LR
 
 ---
 
-## 5. Phân hệ 3: Điều phối Giao vận & Giao tiếp Realtime
+## 5. Phân hệ 3: Điều phối Giao vận & Chăm sóc sau mua
 
-Phân hệ kết nối giữa Khách hàng, Quán và Đối tác vận chuyển Lalamove, đồng thời duy trì kênh liên lạc trực tiếp (in-app chat) trong suốt vòng đời đơn hàng.
+Phân hệ kết nối giữa Khách hàng, Quán và Đối tác vận chuyển Lalamove, đồng thời hỗ trợ theo dõi bản đồ OSMDroid + OSRM realtime, gọi điện trực tiếp tài xế, đánh giá 1–5 sao kèm ảnh và đặt lại đơn cũ.
 
 ![Phân hệ 3: Điều phối Giao vận & Chăm sóc sau mua](diagrams/03-use-case-diagrams/04-Phan-he-giao-van-nhan-tin.png)
 
