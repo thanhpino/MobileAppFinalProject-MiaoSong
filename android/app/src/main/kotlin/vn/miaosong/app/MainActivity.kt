@@ -176,15 +176,19 @@ class MainActivity : ComponentActivity() {
                             accountRole = user.role
                             activeRole = user.role
                             showAuthScreen = false
+                            MiaoMessagingService.updateActiveSession(this@MainActivity, user.uid, user.role.name)
+                            MiaoMessagingService.syncCurrentToken()
                         } else {
                             accountRole = UserRole.CUSTOMER
                             showAuthScreen = true
                             showProfileScreen = false
+                            MiaoMessagingService.clearActiveSession(this@MainActivity)
                         }
                     }
                 }
 
                 LaunchedEffect(activeRole) {
+                    MiaoMessagingService.updateActiveRole(this@MainActivity, activeRole.name)
                     if (activeRole == UserRole.MERCHANT) {
                         MerchantOrderMonitorService.start(this@MainActivity)
                     } else {
