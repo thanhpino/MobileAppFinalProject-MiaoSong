@@ -248,6 +248,18 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override suspend fun signOut() {
+        val uid = auth.currentUser?.uid
+        if (!uid.isNullOrBlank()) {
+            runCatching {
+                val token = com.google.firebase.messaging.FirebaseMessaging.getInstance().token.await()
+                if (token.isNotBlank()) {
+                    firestore.collection("users")
+                        .document(uid)
+                        .update("fcmTokens", FieldValue.arrayRemove(token))
+                        .await()
+                }
+            }
+        }
         _mockCurrentUser.value = null
         runCatching { auth.signOut() }
     }

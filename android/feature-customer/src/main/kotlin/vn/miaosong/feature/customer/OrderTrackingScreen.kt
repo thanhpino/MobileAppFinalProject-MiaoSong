@@ -58,6 +58,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MyLocation
@@ -1121,24 +1122,21 @@ fun OrderTrackingScreen(
                         )
                     }
 
-                    val stepIndex = when (order.status) {
-                        OrderStatus.PENDING_PAYMENT -> 0
-                        OrderStatus.PLACED -> 1
-                        OrderStatus.CONFIRMED, OrderStatus.READY, OrderStatus.FINDING_DRIVER -> 2
-                        OrderStatus.DRIVER_ASSIGNED, OrderStatus.ARRIVED_AT_STORE -> 3
-                        OrderStatus.PICKED_UP, OrderStatus.DELIVERING -> 4
-                        OrderStatus.COMPLETED -> 5
-                        else -> 1
-                    }
+                    val isRejectedOrCancelled = order.status == OrderStatus.REJECTED ||
+                        order.status == OrderStatus.CANCELLED
+                    if (isRejectedOrCancelled) {
+                        val isRejected = order.status == OrderStatus.REJECTED
+                        val storeDisplayName = order.storeName.ifBlank { "quán" }
+                        val reasonDetail = order.rejectReason?.takeIf { it.isNotBlank() }
+                        val actorLabel = when {
+                            isRejected -> "Quán $storeDisplayName đã từ chối đơn"
+                            reasonDetail?.contains("Khách", ignoreCase = true) == true -> "Khách hàng đã hủy đơn"
+                            reasonDetail?.contains("quá hạn", ignoreCase = true) == true ||
+                                reasonDetail?.contains("hệ thống", ignoreCase = true) == true -> "Hệ thống đã tự động hủy đơn"
+                            else -> "Đơn hàng đã bị hủy"
+                        }
 
-                    val steps = listOf(
-                        "Đã đặt đơn tại ${order.storeName.ifBlank { "quán" }}" to (stepIndex >= 1),
-                        "Quán đã xác nhận & đang chuẩn bị món" to (stepIndex >= 2),
-                        "Tài xế Lalamove đã nhận chuyến & đến quán" to (stepIndex >= 3),
-                        "Tài xế đã lấy món & đang giao đến bạn" to (stepIndex >= 4),
-                        "Giao hàng thành công" to (stepIndex >= 5),
-                    )
-                    steps.forEach { (title, done) ->
+                        // Bước 1: Đã đặt đơn
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -1147,15 +1145,122 @@ fun OrderTrackingScreen(
                             Icon(
                                 imageVector = Icons.Default.CheckCircle,
                                 contentDescription = null,
-                                tint = if (done) MiaoColors.SecondaryTealBright else MiaoColors.OutlineVariant,
+                                tint = MiaoColors.SecondaryTealBright,
                                 modifier = Modifier.size(20.dp),
                             )
                             Text(
-                                text = title,
-                                color = if (done) MiaoColors.OnSurface else MiaoColors.OnSurfaceVariant,
+                                text = "Đã đặt đơn tại $storeDisplayName",
+                                color = MiaoColors.OnSurface,
                                 fontSize = 13.sp,
-                                fontWeight = if (done) FontWeight.SemiBold else FontWeight.Normal,
+                                fontWeight = FontWeight.SemiBold,
                             )
+                        }
+
+                        // Bước 2: Bị từ chối / hủy với icon đỏ & ghi rõ người từ chối/hủy
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.Top,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Cancel,
+                                contentDescription = null,
+                                tint = Color(0xFFD92D20),
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    text = actorLabel,
+                                    color = Color(0xFFB42318),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                                if (reasonDetail != null) {
+                                    Text(
+                                        text = "Lý do: $reasonDetail",
+                                        color = MiaoColors.OnSurfaceVariant,
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                            }
+                        }
+
+                        // Bước 3 (nếu có hoàn tiền ZaloPay): trạng thái hoàn tiền
+                        if (order.refundStatus != RefundStatus.NONE) {
+                            val (refundIcon, refundTint, refundLabel) = when (order.refundStatus) {
+                                RefundStatus.REFUNDED -> Triple(
+                                    Icons.Default.CheckCircle,
+                                    Color(0xFF027A48),
+                                    "Đã hoàn tiền ${MoneyFormatter.formatVnd(order.payment.amountVnd)} về ZaloPay",
+                                )
+                                RefundStatus.PENDING -> Triple(
+                                    Icons.Default.CheckCircle,
+                                    MiaoColors.BrandOrange,
+                                    "Đang xử lý hoàn tiền ZaloPay...",
+                                )
+                                RefundStatus.REFUND_FAILED -> Triple(
+                                    Icons.Default.Cancel,
+                                    Color(0xFFD92D20),
+                                    "Hoàn tiền ZaloPay gặp sự cố — vui lòng liên hệ hỗ trợ",
+                                )
+                                RefundStatus.NONE -> Triple(Icons.Default.CheckCircle, MiaoColors.OutlineVariant, "")
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                Icon(
+                                    imageVector = refundIcon,
+                                    contentDescription = null,
+                                    tint = refundTint,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                                Text(
+                                    text = refundLabel,
+                                    color = refundTint,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
+                        }
+                    } else {
+                        val stepIndex = when (order.status) {
+                            OrderStatus.PENDING_PAYMENT -> 0
+                            OrderStatus.PLACED -> 1
+                            OrderStatus.CONFIRMED, OrderStatus.READY, OrderStatus.FINDING_DRIVER -> 2
+                            OrderStatus.DRIVER_ASSIGNED, OrderStatus.ARRIVED_AT_STORE -> 3
+                            OrderStatus.PICKED_UP, OrderStatus.DELIVERING -> 4
+                            OrderStatus.COMPLETED -> 5
+                            else -> 1
+                        }
+
+                        val steps = listOf(
+                            "Đã đặt đơn tại ${order.storeName.ifBlank { "quán" }}" to (stepIndex >= 1),
+                            "Quán đã xác nhận & đang chuẩn bị món" to (stepIndex >= 2),
+                            "Tài xế Lalamove đã nhận chuyến & đến quán" to (stepIndex >= 3),
+                            "Tài xế đã lấy món & đang giao đến bạn" to (stepIndex >= 4),
+                            "Giao hàng thành công" to (stepIndex >= 5),
+                        )
+                        steps.forEach { (title, done) ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = if (done) MiaoColors.SecondaryTealBright else MiaoColors.OutlineVariant,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                                Text(
+                                    text = title,
+                                    color = if (done) MiaoColors.OnSurface else MiaoColors.OnSurfaceVariant,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (done) FontWeight.SemiBold else FontWeight.Normal,
+                                )
+                            }
                         }
                     }
                 }
