@@ -417,9 +417,18 @@ export const rejectOrder = onCall(async (request) => {
     let refundStatus = paymentToRefund ? "PENDING" : "NONE";
     if (paymentToRefund) {
       const p = paymentToRefund as { method: PaymentMethod; zpTransId: string; amountVnd: number };
-      const res = await PaymentGatewayFactory.of(p.method).refund(p.zpTransId, p.amountVnd, reasonText);
-      refundStatus = res.success ? "REFUNDED" : "REFUND_FAILED";
-      await ref.update({ refundStatus });
+      let refundId: string | null = null;
+      try {
+        const res = await PaymentGatewayFactory.of(p.method).refund(p.zpTransId, p.amountVnd, reasonText);
+        refundStatus = res.success ? "REFUNDED" : "REFUND_FAILED";
+        refundId = res.refundId ?? null;
+      } catch {
+        refundStatus = "REFUND_FAILED";
+      }
+      await ref.update({
+        refundStatus,
+        ...(refundId ? { "payment.refundId": refundId } : {}),
+      });
     }
 
     return { ok: true, data: { orderId, status: "REJECTED", refundStatus } };
@@ -568,9 +577,18 @@ export const cancelOrder = onCall(async (request) => {
     let refundStatus = paymentToRefund ? "PENDING" : "NONE";
     if (paymentToRefund) {
       const p = paymentToRefund as { method: PaymentMethod; zpTransId: string; amountVnd: number };
-      const res = await PaymentGatewayFactory.of(p.method).refund(p.zpTransId, p.amountVnd, cancelReason);
-      refundStatus = res.success ? "REFUNDED" : "REFUND_FAILED";
-      await ref.update({ refundStatus });
+      let refundId: string | null = null;
+      try {
+        const res = await PaymentGatewayFactory.of(p.method).refund(p.zpTransId, p.amountVnd, cancelReason);
+        refundStatus = res.success ? "REFUNDED" : "REFUND_FAILED";
+        refundId = res.refundId ?? null;
+      } catch {
+        refundStatus = "REFUND_FAILED";
+      }
+      await ref.update({
+        refundStatus,
+        ...(refundId ? { "payment.refundId": refundId } : {}),
+      });
     }
 
     return { ok: true, data: { orderId, status: "CANCELLED", refundStatus } };
