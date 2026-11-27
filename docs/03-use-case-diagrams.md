@@ -55,8 +55,8 @@ flowchart TB
             UC_CUSTOM["UC05: Tùy chỉnh món (Size/Topping)"]
             UC_CART["UC06: Quản lý giỏ hàng"]
             UC_ORDER["UC09: Đặt hàng & Thanh toán"]
+            UC_CANCEL["UC15: Hủy đơn trước khi quán nhận"]
             UC_TRACK["UC10: Theo dõi đơn & Tài xế"]
-            UC_CHAT_C["UC16: Nhắn tin với Tài xế / Quán"]
             UC_REV["UC12: Đánh giá đơn hàng"]
             UC_REORDER["UC14: Đặt lại đơn cũ"]
         end
@@ -70,7 +70,6 @@ flowchart TB
             UC_REJECT["UC27: Từ chối đơn & Hoàn tiền"]
             UC_KDS["UC28: Màn hình Bếp (KDS)"]
             UC_DISPATCH["UC30: Gọi Shipper Lalamove"]
-            UC_CHAT_M["UC36: Nhắn tin với Khách hàng"]
             UC_STATUS_M["UC32: Đổi trạng thái hoạt động"]
         end
 
@@ -97,8 +96,8 @@ flowchart TB
     KH --> UC_BROWSE
     KH --> UC_CART
     KH --> UC_ORDER
+    KH --> UC_CANCEL
     KH --> UC_TRACK
-    KH --> UC_CHAT_C
     KH --> UC_REV
     KH --> UC_REORDER
 
@@ -111,14 +110,13 @@ flowchart TB
     Q --> UC_REJECT
     Q --> UC_KDS
     Q --> UC_DISPATCH
-    Q --> UC_CHAT_M
     Q --> UC_STATUS_M
 
     %% Quan hệ giữa các Use Case
     UC_BROWSE -. "<<include>>" .-> UC_CUSTOM
     UC_ORDER -. "<<include>>" .-> UC_QUOTE
     UC_ORDER -. "<<extend>>" .-> UC_VOU_VAL
-    UC_TRACK -. "<<extend>>" .-> UC_CHAT_C
+    UC_ORDER -. "<<extend>>" .-> UC_CANCEL
     UC_CONFIRM -. "<<extend>>" .-> UC_NEWORD
     UC_REJECT -. "<<extend>>" .-> UC_NEWORD
     UC_REJECT -. "<<include>>" .-> UC_CB_ZLP
@@ -260,38 +258,31 @@ flowchart TB
     actor_Q(["🏪 Quán ăn"])
     actor_LL(["🛵 Lalamove API"])
 
-    subgraph SUB_DISPATCH["Phân hệ Giao vận & Nhắn tin Realtime"]
+    subgraph SUB_DISPATCH["Phân hệ Giao vận & Chăm sóc sau mua"]
         UC30["UC30: Gọi Shipper Lalamove"]
         UC31["UC31: Theo dõi lộ trình & Cảnh báo trễ"]
         UC40["UC40: Đồng bộ thông tin tài xế & chuyến (Webhook)"]
-        UC10["UC10: Xem thẻ tài xế & Timeline đơn"]
-        UC16["UC16: Khách nhắn tin với Tài xế / Quán"]
-        UC36["UC36: Quán nhắn tin với Khách hàng"]
-        UC12["UC12: Chấm điểm 1-5 sao & Nhận xét"]
+        UC10["UC10: Xem bản đồ tài xế OSMDroid & Timeline đơn"]
+        UC12["UC12: Chấm điểm 1-5 sao, Ảnh & Nhận xét"]
         UC14["UC14: Đặt lại đơn cũ (Reorder)"]
     end
 
     actor_Q --> UC30
     actor_Q --> UC31
-    actor_Q --> UC36
     actor_KH --> UC10
-    actor_KH --> UC16
     actor_KH --> UC12
     actor_KH --> UC14
 
     UC30 --> actor_LL
     actor_LL --> UC40
     UC40 -. "<<include>>" .-> UC10
-    UC10 -. "<<extend>>" .-> UC16
-    UC31 -. "<<extend>>" .-> UC36
     UC12 -. "<<extend>>" .-> UC10
     UC14 -. "<<extend>>" .-> UC10
 ```
 
 ### Đặc điểm quan hệ:
 * **`<<include>>` UC40 $\rightarrow$ UC10:** Khi webhook Lalamove trả thông tin tài xế (Tên, SĐT, Biển số xe) hoặc đổi trạng thái chuyến, màn hình theo dõi đơn của khách hàng tự động cập nhật ngay lập tức.
-* **`<<extend>>` UC16 $\rightarrow$ UC10:** Tại màn hình Theo dõi đơn, khách hàng có thể mở tính năng nhắn tin in-app để chat trực tiếp với tài xế/quán.
-* **`<<extend>>` UC12 $\rightarrow$ UC10:** Ngay khi đơn chuyển trạng thái `COMPLETED` (Giao thành công), hệ thống mở rộng hiển thị hộp thoại/bottom sheet để khách hàng đánh giá 1–5 sao.
+* **`<<extend>>` UC12 $\rightarrow$ UC10:** Ngay khi đơn chuyển trạng thái `COMPLETED` (Giao thành công), hệ thống mở rộng hiển thị hộp thoại đánh giá 1–5 sao kèm tải ảnh thực tế.
 * **`<<extend>>` UC14 $\rightarrow$ UC10:** Từ chi tiết đơn hoàn thành trong lịch sử, khách có thể nhấn "Đặt lại đơn này" để tái tạo giỏ hàng.
 
 ---
@@ -344,8 +335,7 @@ flowchart LR
 | **UC27 (Từ chối đơn)** | `<<include>>` | **Hoàn tiền ZaloPay API** | Đơn bị từ chối là đơn đã thanh toán online thành công (`payment.status == PAID`) |
 | **UC28 (Màn hình Bếp KDS)** | `<<include>>` | **UC29 (Đánh dấu đã đóng gói)** | Bếp chế biến xong món ăn, chuyển trạng thái sang `READY` |
 | **UC29 (Đã đóng gói)** | `<<include>>` | **UC30 (Gọi Shipper Lalamove)** | Quán sẵn sàng giao đồ ăn, gửi thông tin tạo đơn sang Lalamove API |
-| **UC40 (Đồng bộ tài xế)** | `<<include>>` | **UC10 (Theo dõi đơn hàng)** | Webhook Lalamove trả dữ liệu tài xế, app khách hiển thị thẻ tài xế realtime |
-| **UC10 (Theo dõi đơn hàng)** | `<<extend>>` | **UC16 (Nhắn tin với tài xế/quán)** | Khách hàng bấm nút Chat trên Thẻ tài xế / Chi tiết đơn |
-| **UC31 (Theo dõi giao hàng)** | `<<extend>>` | **UC36 (Quán nhắn tin với khách)** | Quán bấm nút Chat trên đơn hàng đang giao |
+| **UC40 (Đồng bộ tài xế)** | `<<include>>` | **UC10 (Theo dõi đơn hàng)** | Webhook Lalamove trả dữ liệu tài xế, app khách hiển thị thẻ & vị trí tài xế realtime |
+| **UC15 (Hủy đơn hàng)** | `<<extend>>` | **Hoàn tiền ZaloPay API** | Khách hủy đơn ở trạng thái `PLACED` đã thanh toán ZaloPay (`payment.status == PAID`) |
 | **UC10 (Theo dõi đơn hàng)** | `<<extend>>` | **UC12 (Đánh giá đơn hàng)** | Đơn hàng hoàn tất giao thành công (`status == COMPLETED`) |
 | **UC13 (Lịch sử đơn hàng)** | `<<extend>>` | **UC14 (Đặt lại đơn cũ)** | Khách bấm "Đặt lại đơn này" từ một đơn cũ trong lịch sử |

@@ -238,7 +238,7 @@ Android 8.0 (API 26) trở lên, targetSdk 36; cần Internet; phân phối qua 
 | FR-AUTH-01 | Đăng nhập Google hoặc Email/mật khẩu; bắt buộc cập nhật SĐT trước khi đặt đơn đầu tiên | Must |
 | FR-ADDR-01 | Thêm/sửa/xóa địa chỉ với autocomplete, ghim vị trí trên bản đồ, đặt mặc định | Must |
 | FR-STORE-01 | Hiển thị danh sách quán đối tác, trạng thái mở/bận/đóng, điểm đánh giá | Must |
-| FR-STORE-02 | Mở thẳng trang quán qua deep link `https://miaosong.web.app/s/{slug}` | Should |
+| FR-STORE-02 | Mở thẳng trang quán qua deep link `https://miaosong-pro.web.app/s/{slug}` hoặc `miaosong://s/{slug}` | Should |
 | FR-CART-01 | Thêm món với cấu hình; tách dòng theo CartLineKey | Must |
 | FR-CART-02 | Sửa SL, sửa cấu hình, xóa dòng; giỏ lưu cục bộ, còn sau khi tắt app | Must |
 | FR-CART-03 | Giỏ chỉ chứa món của một quán | Must |

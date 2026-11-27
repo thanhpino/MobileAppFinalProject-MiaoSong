@@ -104,7 +104,6 @@ erDiagram
     ORDER ||--|{ ORDER_ITEM : "gồm"
     ORDER ||--|| PAYMENT : "có"
     ORDER ||--o| DELIVERY : "có"
-    ORDER ||--o{ MESSAGE : "chứa tin nhắn"
     ORDER ||--o| REVIEW : "được đánh giá"
 
     USER {
@@ -125,6 +124,7 @@ erDiagram
         string id PK
         string name
         string slug
+        string avatarUrl
         string manualStatus "OPEN | BUSY | CLOSED"
         timestamp busyUntil
         int maxDistanceKm
@@ -197,10 +197,12 @@ erDiagram
     }
     PAYMENT {
         string method "COD | ZALOPAY"
-        string status "UNPAID | PAID"
+        string status "UNPAID | PAID | FAILED"
         long amountVnd
+        string appTransId
         string gatewayTxnId
-        string refundStatus "NONE | PENDING | REFUNDED | FAILED"
+        string paymentUrl
+        string refundStatus "NONE | PENDING | REFUNDED | REFUND_FAILED"
     }
     DELIVERY {
         string provider "LALAMOVE | MOCK"
@@ -209,20 +211,14 @@ erDiagram
         string driverName
         string driverPhone
         string plate
-        timestamp etaAt
-    }
-    MESSAGE {
-        string id PK
-        string senderId FK
-        string senderRole "CUSTOMER | MERCHANT | DRIVER"
-        string text
-        timestamp createdAt
+        string shareLink
     }
     REVIEW {
         string orderId PK
         int stars
         string comment
         string tags
+        string imageUrl
     }
 ```
 
@@ -240,8 +236,8 @@ erDiagram
 | `stores/{storeId}/vouchers/{id}` | MERCHANT | `usedCount` chỉ do Cloud Functions tăng trong transaction |
 | `voucherRedemptions/{voucherId_uid_orderId}` | chỉ CF | Dùng kiểm soát `perUserLimit` |
 | `orders/{orderId}` | **chỉ CF** | Cấm client ghi trực tiếp. Toàn bộ items, payment, delivery snapshot |
-| `orders/{orderId}/messages/{msgId}` | CUSTOMER, MERCHANT | **Kênh nhắn tin in-app realtime (mới)** |
-| `reviews/{orderId}` | chỉ CF | `id = orderId` đảm bảo 1 đơn chỉ đánh giá 1 lần |
+| `reviews/{orderId}` | chỉ CF | `id = orderId` đảm bảo 1 đơn chỉ đánh giá 1 lần (hỗ trợ `imageUrl` từ Storage) |
+| `idempotencyKeys/{uid_key}` | chỉ CF | Chống tạo đơn trùng khi mạng chập chờn hoặc bấm Đặt nhiều lần |
 | `processedEvents/{source_eventId}` | chỉ CF | Chống webhook/IPN gửi lặp (Idempotency) |
 
 ---
@@ -460,16 +456,6 @@ classDiagram
     class UsageLimitSpec
     class PerUserLimitSpec
 
-    class ChatMessage {
-        +id: String
-        +orderId: String
-        +senderId: String
-        +senderRole: SenderRole
-        +text: String
-        +createdAt: Timestamp
-        +isFromCustomer() Boolean
-    }
-
     class OrderStateMachine {
         +canTransition(current: OrderStatus, target: OrderStatus) Boolean
         +validateTransition(current: OrderStatus, target: OrderStatus) void
@@ -560,70 +546,55 @@ classDiagram
 
 ---
 
-## 10. Class Diagram — Android Clean Architecture: Feature Nhắn tin In-App Realtime
+## 10. Class Diagram — Android Clean Architecture: Feature Theo dõi Đơn & Bản đồ OSMDroid Realtime
 
-Thiết kế phân lớp cho màn hình Chat, tích hợp lắng nghe thời gian thực qua Firestore SnapshotListener.
+Thiết kế phân lớp cho màn hình Theo dõi đơn hàng (`OrderTrackingScreen`), tích hợp bản đồ OpenStreetMap (OSMDroid) + tuyến đường bộ OSRM, đối soát thanh toán ZaloPay tự động và đánh giá kèm ảnh.
 
 ```mermaid
 classDiagram
-    class ChatScreen {
+    class OrderTrackingScreen {
         <<Composable UI>>
-        +ChatContent(uiState: ChatUiState, onSend: (String) -> Unit)
+        +OrderTrackingScreen(orderId: String?, onBack: () -> Unit)
+        -OsmDeliveryMapView(pickup: GeoPoint, dropoff: GeoPoint, driver: GeoPoint, routePoints: List)
     }
 
-    class ChatViewModel {
-        -observeMessagesUseCase: ObserveMessagesUseCase
-        -sendMessageUseCase: SendMessageUseCase
-        +uiState: StateFlow~ChatUiState~
-        +onMessageInputChanged(text: String)
-        +onSendMessage()
+    class OrderTrackingViewModel {
+        -authRepository: AuthRepository
+        -orderRepository: OrderRepository
+        -storeRepository: StoreRepository
+        +uiState: StateFlow~OrderTrackingUiState~
+        +bindOrderId(orderId: String?)
+        +reconcilePendingPayment(silent: Boolean)
+        +cancelPendingOrder()
+        +submitReview(stars: Int, tags: List, comment: String, imageBytes: ByteArray?)
     }
 
-    class ChatUiState {
-        +orderId: String
-        +partnerName: String
-        +messages: List~ChatMessageUiModel~
-        +currentInput: String
-        +isSending: Boolean
-        +error: String?
+    class OrderTrackingUiState {
+        +order: Order
+        +store: Store?
+        +customerName: String
+        +submittedStars: Int?
+        +feedbackMessage: String?
     }
 
-    class ObserveMessagesUseCase {
-        -chatRepo: ChatRepository
-        +invoke(orderId: String) Flow~List~ChatMessage~~
-    }
-
-    class SendMessageUseCase {
-        -chatRepo: ChatRepository
-        +invoke(orderId: String, text: String) Result~Unit~
-    }
-
-    class ChatRepository {
+    class OrderRepository {
         <<interface>>
-        +observeMessages(orderId: String) Flow~List~ChatMessage~~
-        +sendMessage(orderId: String, message: ChatMessage) Result~Unit~
+        +observeOrder(orderId: String) Flow~Order?~
+        +confirmPayment(orderId: String, appTransId: String) AppResult~Boolean~
+        +cancelOrder(orderId: String, reason: String) AppResult~Unit~
+        +submitReview(orderId: String, stars: Int, tags: List, comment: String, imageBytes: ByteArray?) AppResult~Unit~
     }
 
-    class ChatRepositoryImpl {
-        -firestoreDataSource: FirestoreChatDataSource
-        +observeMessages(orderId: String) Flow~List~ChatMessage~~
-        +sendMessage(orderId: String, message: ChatMessage) Result~Unit~
-    }
-
-    class FirestoreChatDataSource {
+    class OrderRepositoryImpl {
         -firestore: FirebaseFirestore
-        +listenMessages(orderId: String) Flow~List~ChatMessageDto~~
-        +addMessage(orderId: String, dto: ChatMessageDto) Task
+        -functions: FirebaseFunctions
+        -storage: FirebaseStorage
     }
 
-    ChatScreen --> ChatViewModel
-    ChatViewModel --> ChatUiState
-    ChatViewModel --> ObserveMessagesUseCase
-    ChatViewModel --> SendMessageUseCase
-    ObserveMessagesUseCase --> ChatRepository
-    SendMessageUseCase --> ChatRepository
-    ChatRepository <|.. ChatRepositoryImpl
-    ChatRepositoryImpl --> FirestoreChatDataSource
+    OrderTrackingScreen --> OrderTrackingViewModel
+    OrderTrackingViewModel --> OrderTrackingUiState
+    OrderTrackingViewModel --> OrderRepository
+    OrderRepository <|.. OrderRepositoryImpl
 ```
 
 ---

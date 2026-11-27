@@ -91,7 +91,7 @@ flowchart LR
 - **Câu nói tự nhiên:** *"Miao đi!"*, *"Tối nay MiaoSong không?"*
 - **Logo:** tô bún với 2 tai mèo trên miệng tô, 3 làn khói bốc lên làm thành **ria mèo**; dạng chữ có thể kèm chữ Hán 喵送 nhỏ phía dưới.
 - **Màu chủ đạo:** cam mèo mướp — vừa là màu thức ăn kích thích vị giác vừa là màu của linh vật.
-- **Định danh kỹ thuật:** app name `MiaoSong`, applicationId `vn.miaosong.app`, deep link `https://miaosong.web.app/s/{slug}` (domain miễn phí của Firebase Hosting), scheme `miaosong://`.
+- **Định danh kỹ thuật:** app name `MiaoSong`, applicationId `vn.miaosong.app`, deep link `https://miaosong-pro.web.app/s/{slug}` (domain miễn phí của Firebase Hosting), scheme `miaosong://`.
 
 ---
 
@@ -145,7 +145,7 @@ flowchart LR
 | Điều hướng | Navigation Compose type-safe, 2 nav graph theo role, deep link |
 | Local | Room (giỏ hàng) · DataStore (cài đặt, role) |
 | Mạng | Firebase SDK (Firestore, Functions callable, Auth, Storage, FCM) · OpenStreetMap / Nominatim API |
-| Thanh toán | **Chrome Custom Tabs** mở URL thanh toán ZaloPay → quay về bằng App Link `miaosong.web.app/pay/return` |
+| Thanh toán | **Chrome Custom Tabs** mở URL thanh toán ZaloPay → quay về bằng App Link `miaosong-pro.web.app/pay/return` |
 | Ảnh · Bản đồ | Coil 3 · MapLibre Compose / Osmdroid + Nominatim Geocoding API |
 | Nền | Foreground Service (chế độ quán khi đang mở cửa) · WorkManager |
 | Chất lượng | Crashlytics · ktlint · JUnit · MockK · Turbine · Compose UI test |
@@ -323,7 +323,7 @@ sequenceDiagram
     APP->>GW: mở Custom Tab / ZaloPay App
     KH->>GW: thanh toán (tài khoản sandbox)
     GW-->>CF: POST /payments/zalopay/callback (server-to-server)
-    GW-->>APP: redirect về miaosong.web.app/pay/return
+    GW-->>APP: redirect về miaosong-pro.web.app/pay/return
     APP->>CF: confirmPayment(orderId) (đối soát trạng thái)
     CF->>CF: xác minh chữ ký HMAC-SHA256 (key2), idempotent
     CF-->>APP: status = PLACED

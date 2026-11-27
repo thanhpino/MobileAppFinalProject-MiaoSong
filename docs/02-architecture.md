@@ -93,10 +93,10 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    subgraph Handlers["handlers — lớp mỏng"]
-        HC["onCall: placeOrder, confirmOrder, rejectOrder,<br/>markReady, dispatchDriver, confirmPayment,<br/>getDeliveryQuote, validateVoucher, submitReview"]
-        HW["onRequest: /webhooks/lalamove,<br/>/payments/zalopay/callback"]
-        HT["triggers: onOrderUpdated, scheduler"]
+    subgraph Handlers["handlers — lớp mỏng (15 Cloud Functions)"]
+        HC["onCall: placeOrder, confirmOrder, rejectOrder, cancelOrder,<br/>markReady, dispatchDriver, mockDeliveryAdvance, confirmPayment,<br/>getDeliveryQuote, validateVoucher, submitReview"]
+        HW["onRequest: lalamoveWebhook, zalopayCallback"]
+        HT["triggers: onOrderUpdated, expirePendingOrders (scheduler)"]
     end
     subgraph Modules["modules"]
         CAT["catalog<br/>store, menu, trạng thái quán"]
